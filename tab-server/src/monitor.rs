@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
 use tab_protocol::{BufferIndex, MonitorInfo};
 
@@ -10,6 +10,7 @@ pub trait MonitorIdStorage {
 pub struct Output<Texture> {
 	buffers: [Texture; 2],
 	current: Option<BufferIndex>,
+	queue: VecDeque<BufferIndex>,
 	pending_page_flip: bool,
 }
 impl<Texture> Output<Texture> {
@@ -47,6 +48,7 @@ impl<Texture> Monitor<Texture> {
 			Output {
 				buffers,
 				current: None,
+				queue: VecDeque::new(),
 				pending_page_flip: false,
 			},
 		);
@@ -55,8 +57,12 @@ impl<Texture> Monitor<Texture> {
 		let Some(o) = self.outputs.get_mut(session_id) else {
 			return false;
 		};
-		o.current = Some(buffer);
-		o.pending_page_flip = true;
+		if !o.pending_page_flip && o.queue.is_empty() {
+			o.current = Some(buffer);
+			o.pending_page_flip = true;
+		} else {
+			o.queue.push_back(buffer);
+		}
 		true
 	}
 	pub fn current_buffer_for_session(&self, session_id: &str) -> Option<&Texture> {
@@ -72,6 +78,10 @@ impl<Texture> Monitor<Texture> {
 		};
 		if o.pending_page_flip {
 			o.pending_page_flip = false;
+			if let Some(next) = o.queue.pop_front() {
+				o.current = Some(next);
+				o.pending_page_flip = true;
+			}
 			true
 		} else {
 			false
