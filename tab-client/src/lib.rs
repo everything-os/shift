@@ -731,7 +731,7 @@ struct Output {
 	info: MonitorInfo,
 	buffers: [OutputBuffer; 2],
 	available: VecDeque<usize>,
-	in_flight: Option<usize>,
+	in_flight: VecDeque<usize>,
 	drawing: Option<usize>,
 }
 
@@ -748,7 +748,7 @@ impl Output {
 			info,
 			buffers,
 			available,
-			in_flight: None,
+			in_flight: VecDeque::new(),
 			drawing: None,
 		})
 	}
@@ -769,12 +769,12 @@ impl Output {
 
 	fn begin_swap(&mut self) -> Option<usize> {
 		let idx = self.drawing.take()?;
-		self.in_flight = Some(idx);
+		self.in_flight.push_back(idx);
 		Some(idx)
 	}
 
 	fn complete_frame(&mut self) -> bool {
-		if let Some(idx) = self.in_flight.take() {
+		if let Some(idx) = self.in_flight.pop_front() {
 			self.available.push_back(idx);
 			true
 		} else {

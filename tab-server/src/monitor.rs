@@ -62,10 +62,13 @@ impl<Texture> Monitor<Texture> {
 		};
 		if !o.pending_page_flip && o.queue.is_empty() {
 			if let Some(current) = o.current {
-				debug_assert_ne!(
-					current, buffer,
-					"Session {session_id} swapped buffer {buffer:?} twice without presenting"
-				);
+				if current == buffer {
+					tracing::error!(
+						session_id = session_id,
+						?buffer,
+						"swap_buffers reused buffer before FRAME_DONE"
+					);
+				}
 			}
 			o.current = Some(buffer);
 			o.current_swap_started = Some(Instant::now());
