@@ -1,5 +1,4 @@
 use std::{
-	collections::HashSet,
 	env,
 	error::Error,
 	os::fd::AsRawFd,
@@ -31,13 +30,12 @@ fn main() -> Result<(), Box<dyn Error>> {
 	);
 
 	let mut monitor_id = client.monitor_ids().into_iter().next();
-	let mut ready_monitors: HashSet<String> = monitor_id.iter().cloned().collect();
 
 	if monitor_id.is_none() {
 		println!("Waiting for a monitor from Shift...");
 		while monitor_id.is_none() {
 			let events = pump_events(&mut client, true)?;
-			handle_events(&events, &mut monitor_id, &mut ready_monitors);
+			handle_events(&events, &mut monitor_id);
 		}
 	}
 
@@ -57,16 +55,11 @@ fn main() -> Result<(), Box<dyn Error>> {
 	loop {
 		if monitor_id.is_none() {
 			let events = pump_events(&mut client, true)?;
-			handle_events(&events, &mut monitor_id, &mut ready_monitors);
+			handle_events(&events, &mut monitor_id);
 			continue;
 		}
 
 		let active_monitor = monitor_id.clone().unwrap();
-		if !ready_monitors.contains(&active_monitor) {
-			let events = pump_events(&mut client, true)?;
-			handle_events(&events, &mut monitor_id, &mut ready_monitors);
-			continue;
-		}
 		match client.acquire_frame(&active_monitor) {
 			Ok(frame) => {
 				let dt = last_frame.elapsed().as_secs_f32().max(1.0 / 480.0);
@@ -75,20 +68,16 @@ fn main() -> Result<(), Box<dyn Error>> {
 				logo.update(dt, frame.size(), logo_size);
 				renderer.draw_frame(&gl, &frame, &logo, logo_size);
 				client.swap_buffers(&active_monitor)?;
-				ready_monitors.remove(&active_monitor);
 				if let Some(fps) = fps_counter.tick() {
 					println!("client fps: {fps:.1}");
 				}
 			}
 			Err(TabClientError::NoFreeBuffers(_)) => {
 				let events = pump_events(&mut client, true)?;
-				handle_events(&events, &mut monitor_id, &mut ready_monitors);
+				handle_events(&events, &mut monitor_id);
 				continue;
 			}
 			Err(TabClientError::UnknownMonitor(_)) => {
-				if let Some(id) = &monitor_id {
-					ready_monitors.remove(id);
-				}
 				monitor_id = None;
 				continue;
 			}
@@ -96,15 +85,11 @@ fn main() -> Result<(), Box<dyn Error>> {
 		}
 
 		let events = pump_events(&mut client, false)?;
-		handle_events(&events, &mut monitor_id, &mut ready_monitors);
+		handle_events(&events, &mut monitor_id);
 	}
 }
 
-fn handle_events(
-	events: &[TabEvent],
-	monitor_id: &mut Option<String>,
-	ready: &mut std::collections::HashSet<String>,
-) {
+fn handle_events(events: &[TabEvent], monitor_id: &mut Option<String>) {
 	for event in events {
 		match event {
 			TabEvent::MonitorAdded(info) => {
@@ -113,11 +98,9 @@ fn handle_events(
 					*monitor_id = Some(info.id.clone());
 					println!("Switched to monitor {}", info.id);
 				}
-				ready.insert(info.id.clone());
 			}
 			TabEvent::MonitorRemoved(id) => {
 				println!("Monitor removed: {id}");
-				ready.remove(id);
 				if monitor_id.as_deref() == Some(id) {
 					*monitor_id = None;
 				}
@@ -125,9 +108,7 @@ fn handle_events(
 			TabEvent::SessionState(state) => {
 				println!("Session state changed: {:?}", state.state);
 			}
-			TabEvent::FrameDone { monitor_id: id } => {
-				ready.insert(id.clone());
-			}
+			TabEvent::FrameDone { .. } => {}
 		}
 	}
 }

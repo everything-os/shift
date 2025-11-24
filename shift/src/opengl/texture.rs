@@ -12,7 +12,8 @@ pub struct TextureBindGuard {
 
 impl TextureBindGuard {
 	pub fn bind(gl: &gl::Gles2, target: u32, texture: u32, slot: u32) -> Self {
-		let old_slot = read_binding(gl, gl::ACTIVE_TEXTURE);
+		let raw_slot = read_binding(gl, gl::ACTIVE_TEXTURE);
+		let old_slot = raw_slot.saturating_sub(gl::TEXTURE0);
 		let binding_enum = binding_param(target);
 		let mut old_id = 0;
 		gl!(gl, GetIntegerv(binding_enum, &mut old_id));
