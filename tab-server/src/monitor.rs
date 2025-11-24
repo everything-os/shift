@@ -58,6 +58,12 @@ impl<Texture> Monitor<Texture> {
 			return false;
 		};
 		if !o.pending_page_flip && o.queue.is_empty() {
+			if let Some(current) = o.current {
+				debug_assert_ne!(
+					current, buffer,
+					"Session {session_id} swapped buffer {buffer:?} twice without presenting"
+				);
+			}
 			o.current = Some(buffer);
 			o.pending_page_flip = true;
 		} else {
