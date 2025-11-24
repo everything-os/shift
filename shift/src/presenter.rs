@@ -6,6 +6,7 @@ use crate::dma_buf_importer::ExternalTexture;
 use crate::error::{FrameAck, RenderError};
 use crate::output::OutputContext;
 use tab_server::{MonitorRenderSnapshot, RenderSnapshot, RenderTransition};
+use tracing::info;
 
 pub struct FramePresenter;
 
@@ -37,6 +38,7 @@ impl FramePresenter {
 				continue;
 			};
 			let sessions = render_single_monitor(
+				monitor_id.as_str(),
 				monitor,
 				snapshot_monitor,
 				snapshot.transition.as_ref(),
@@ -51,6 +53,7 @@ impl FramePresenter {
 }
 
 fn render_single_monitor(
+	monitor_id: &str,
 	monitor: &mut Monitor<OutputContext>,
 	snapshot_monitor: &MonitorRenderSnapshot<'_, ExternalTexture>,
 	transition: Option<&RenderTransition>,
@@ -114,6 +117,9 @@ fn render_single_monitor(
 		.context()
 		.renderer
 		.draw(primary.unwrap(), secondary, mix);
+	if let Some(fps) = monitor.context_mut().record_frame() {
+		info!(monitor_id = monitor_id, fps = fps, "Shift FPS");
+	}
 	Ok(presented)
 }
 

@@ -1,4 +1,10 @@
-use std::{collections::HashSet, env, error::Error, os::fd::AsRawFd, time::Instant};
+use std::{
+	collections::HashSet,
+	env,
+	error::Error,
+	os::fd::AsRawFd,
+	time::{Duration, Instant},
+};
 
 use tab_client::{FrameTarget, TabClient, TabClientError, TabEvent, gl};
 
@@ -46,6 +52,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 	let mut logo = LogoState::new();
 	let mut last_frame = Instant::now();
+	let mut fps_counter = FpsCounter::new();
 
 	loop {
 		if monitor_id.is_none() {
@@ -69,6 +76,9 @@ fn main() -> Result<(), Box<dyn Error>> {
 				renderer.draw_frame(&gl, &frame, &logo, logo_size);
 				client.swap_buffers(&active_monitor)?;
 				ready_monitors.remove(&active_monitor);
+				if let Some(fps) = fps_counter.tick() {
+					println!("client fps: {fps:.1}");
+				}
 			}
 			Err(TabClientError::NoFreeBuffers(_)) => {
 				let events = pump_events(&mut client, true)?;
@@ -211,6 +221,33 @@ struct GlRenderer {
 	uni_size: i32,
 	uni_tint: i32,
 	texture_dims: (u32, u32),
+}
+
+struct FpsCounter {
+	last: Instant,
+	frames: u32,
+}
+
+impl FpsCounter {
+	fn new() -> Self {
+		Self {
+			last: Instant::now(),
+			frames: 0,
+		}
+	}
+
+	fn tick(&mut self) -> Option<f32> {
+		self.frames += 1;
+		let elapsed = self.last.elapsed();
+		if elapsed >= Duration::from_secs(1) {
+			let fps = self.frames as f32 / elapsed.as_secs_f32();
+			self.frames = 0;
+			self.last = Instant::now();
+			Some(fps)
+		} else {
+			None
+		}
+	}
 }
 
 impl GlRenderer {
