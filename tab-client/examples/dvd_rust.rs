@@ -37,7 +37,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 		println!("Waiting for a monitor from Shift...");
 		while monitor_id.is_none() {
 			let events = pump_events(&mut client, true)?;
-			handle_events(&events, &mut monitor_id);
+			handle_events(&events, &mut monitor_id, &mut ready_monitors);
 		}
 	}
 
@@ -111,9 +111,9 @@ fn handle_events(
 				println!("Monitor added: {}", info.id);
 				if monitor_id.is_none() {
 					*monitor_id = Some(info.id.clone());
-					ready.insert(info.id.clone());
 					println!("Switched to monitor {}", info.id);
 				}
+				ready.insert(info.id.clone());
 			}
 			TabEvent::MonitorRemoved(id) => {
 				println!("Monitor removed: {id}");
@@ -128,7 +128,6 @@ fn handle_events(
 			TabEvent::FrameDone { monitor_id: id } => {
 				ready.insert(id.clone());
 			}
-			_ => {}
 		}
 	}
 }
