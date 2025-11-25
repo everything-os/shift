@@ -234,7 +234,6 @@ impl<Texture> TabServer<Texture> {
 		C: MonitorIdStorage,
 	{
 		let mut seen = HashSet::new();
-		let mut cursor_x = 0i32;
 		for monitor in easydrm.monitors_mut() {
 			let ctx = monitor.context_mut();
 			let id = match ctx.monitor_id() {
@@ -254,34 +253,14 @@ impl<Texture> TabServer<Texture> {
 				height: height as i32,
 				refresh_rate,
 				name: format!("Connector {connector_raw}"),
-				x: cursor_x,
-				y: 0,
-				cursor_position: (0, 0),
 			};
 			seen.insert(id.clone());
 			self.register_monitor(info);
-			cursor_x += width as i32;
 		}
 		let existing: Vec<String> = self.monitors.keys().cloned().collect();
 		for id in existing {
 			if !seen.contains(&id) {
 				self.remove_monitor(&id);
-			}
-		}
-
-		// FIXME: Stub layout (left-to-right). Replace with user-configured positions from the
-		// future settings/registry so virtual space matches the user's chosen layout.
-		let mut cursor_x = 0i32;
-		let mut monitor_ids: Vec<String> = self.monitors.keys().cloned().collect();
-		monitor_ids.sort(); // stable order by id; replace with physical ordering when available
-		for id in monitor_ids {
-			if let Some(m) = self.monitors.get_mut(&id) {
-				let mut info = m.info().clone();
-				if info.x != cursor_x {
-					info.x = cursor_x;
-					m.update_info(info);
-				}
-				cursor_x += m.info().width;
 			}
 		}
 	}
@@ -500,7 +479,7 @@ impl<Texture> TabServer<Texture> {
 			match self.clients[idx].connection.read_message_nonblocking() {
 				Ok(Some(msg)) => {
 					let monitors = self.monitor_infos();
-					let events = self.clients[idx].handle_message(msg, &mut self.sessions, &monitors, (0, 0));
+					let events = self.clients[idx].handle_message(msg, &mut self.sessions, &monitors);
 					for event in events {
 						self.dispatch_event(event);
 					}

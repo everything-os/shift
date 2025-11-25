@@ -177,9 +177,6 @@ pub struct MonitorInfo {
 	pub height: i32,
 	pub refresh_rate: i32,
 	pub name: String,
-	pub x: i32,
-	pub y: i32,
-	pub cursor_position: (i32, i32),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -210,7 +207,6 @@ pub enum SessionRole {
 pub struct AuthOkPayload {
 	pub session: SessionInfo,
 	pub monitors: Vec<MonitorInfo>,
-	pub cursor_position: (i32, i32),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

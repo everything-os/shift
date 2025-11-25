@@ -204,8 +204,8 @@ fn pump_events(client: &mut TabClient, blocking: bool) -> Result<Vec<TabEvent>, 
 fn handle_input_event(
 	client: &mut TabClient,
 	payload: &InputEventPayload,
-	session_client_bin: &str,
-	spawned_sessions: &mut Vec<Child>,
+	_session_client_bin: &str,
+	_spawned_sessions: &mut Vec<Child>,
 ) -> Result<(), Box<dyn Error>> {
 	match payload {
 		InputEventPayload::Key { key, state, .. } => {
@@ -214,6 +214,30 @@ fn handle_input_event(
 				println!("Enter pressed – requesting a Penger session");
 				request_session(client, "Penger Session")?;
 			}
+		}
+		InputEventPayload::PointerMotion {
+			device,
+			time_usec,
+			x,
+			y,
+			dx,
+			dy,
+		} => {
+			println!(
+				"Pointer motion: dev={device} time={time_usec} x={x:.2} y={y:.2} dx={dx:.3} dy={dy:.3}"
+			);
+		}
+		InputEventPayload::PointerMotionAbsolute {
+			device,
+			time_usec,
+			x,
+			y,
+			x_transformed,
+			y_transformed,
+		} => {
+			println!(
+				"Pointer absolute: dev={device} time={time_usec} raw=({x:.2}, {y:.2}) transformed=({x_transformed:.2}, {y_transformed:.2})"
+			);
 		}
 		_ => {}
 	}

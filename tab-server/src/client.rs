@@ -37,7 +37,6 @@ impl<Texture> Client<Texture> {
 		message: TabMessage,
 		sessions: &mut SessionRegistry,
 		monitors: &[MonitorInfo],
-		cursor_position: (i32, i32),
 	) -> Vec<ServerEvent<Texture>> {
 		let mut events = Vec::new();
 		match message {
@@ -59,7 +58,6 @@ impl<Texture> Client<Texture> {
 							AuthOkPayload {
 								session: info.clone(),
 								monitors: monitors.to_vec(),
-								cursor_position,
 							},
 						);
 						if let Err(err) = self.connection.send_frame(&frame) {

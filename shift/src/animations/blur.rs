@@ -9,14 +9,17 @@ pub struct BlurFade;
 
 impl Transition for BlurFade {
 	fn timeline(&self) -> AnimationStateTracker {
-		let fade_time = 1./2.;
-		let fade_delay = (1.-fade_time)/2.;
+		let fade_time = 1. / 2.;
+		let fade_delay = (1. - fade_time) / 2.;
 		AnimationStateTracker::from(all!(
 			seq!(
-				BasicAnimation::new("blur", 1./2., easing::ease_out_cubic),
-				FromToAnimation::new("blur", 1./2., 1., 0., easing::ease_in_cubic)
+				BasicAnimation::new("blur", 1. / 2., easing::ease_out_cubic),
+				FromToAnimation::new("blur", 1. / 2., 1., 0., easing::ease_in_cubic)
 			),
-			DelayAnimation::new(fade_delay, BasicAnimation::new("fade", fade_time, easing::ease_out_cubic))
+			DelayAnimation::new(
+				fade_delay,
+				BasicAnimation::new("fade", fade_time, easing::ease_out_cubic)
+			)
 		))
 	}
 

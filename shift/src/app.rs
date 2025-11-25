@@ -137,16 +137,11 @@ impl ShiftApp {
 	}
 
 	fn update_input_transform(&mut self, monitors: &[MonitorInfo]) {
-		if monitors.is_empty() {
-			self.input.set_transform_size(1, 1);
-			return;
-		}
-		let min_x = monitors.iter().map(|m| m.x).min().unwrap_or(0);
-		let min_y = monitors.iter().map(|m| m.y).min().unwrap_or(0);
-		let max_x = monitors.iter().map(|m| m.x + m.width).max().unwrap_or(1);
-		let max_y = monitors.iter().map(|m| m.y + m.height).max().unwrap_or(1);
-		let width = (max_x - min_x).max(1) as u32;
-		let height = (max_y - min_y).max(1) as u32;
+		let width = monitors.first().map(|m| m.width.max(1) as u32).unwrap_or(1);
+		let height = monitors
+			.first()
+			.map(|m| m.height.max(1) as u32)
+			.unwrap_or(1);
 		self.input.set_transform_size(width, height);
 	}
 
