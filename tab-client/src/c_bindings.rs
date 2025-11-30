@@ -200,6 +200,54 @@ pub extern "C" fn tab_client_process_socket_events(handle: *mut TabClientHandle)
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn tab_client_set_cursor_fb(
+	handle: *mut TabClientHandle,
+	monitor_id: *const c_char,
+	width: u32,
+	height: u32,
+	hotspot_x: i32,
+	hotspot_y: i32,
+	data: *const u8,
+	data_len: libc::size_t,
+) -> bool {
+	let client = unwrap_handle!(handle);
+	let Some(monitor) = c_str_to_string(monitor_id) else {
+		return false;
+	};
+	if data.is_null() {
+		return false;
+	}
+	let pixels = unsafe { std::slice::from_raw_parts(data, data_len as usize) };
+	match client.set_cursor_framebuffer(&monitor, width, height, hotspot_x, hotspot_y, pixels) {
+		Ok(_) => true,
+		Err(err) => {
+			client.record_error(err.to_string());
+			false
+		}
+	}
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn tab_client_set_cursor_pos(
+	handle: *mut TabClientHandle,
+	monitor_id: *const c_char,
+	x: i32,
+	y: i32,
+) -> bool {
+	let client = unwrap_handle!(handle);
+	let Some(monitor) = c_str_to_string(monitor_id) else {
+		return false;
+	};
+	match client.set_cursor_position(&monitor, x, y) {
+		Ok(_) => true,
+		Err(err) => {
+			client.record_error(err.to_string());
+			false
+		}
+	}
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn tab_client_process_swap_events(handle: *mut TabClientHandle) -> bool {
 	let client = unwrap_handle!(handle);
 	match client.process_ready_swaps() {

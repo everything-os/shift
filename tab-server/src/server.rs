@@ -11,14 +11,14 @@ use std::time::{Duration, Instant};
 
 use crate::client::{Client, ServerEvent};
 use crate::connection::TabConnection;
-use crate::monitor::Monitor;
 #[cfg(feature = "easydrm")]
 use crate::monitor::MonitorIdStorage;
+use crate::monitor::{Cursor, Monitor};
 use crate::session::{CycleDirection, SessionRegistry};
 use tab_protocol::{
 	DEFAULT_SOCKET_PATH, FramebufferLinkPayload, InputEventPayload, MonitorAddedPayload, MonitorInfo,
-	MonitorRemovedPayload, ProtocolError, SessionActivePayload, SessionInfo, SessionRole,
-	SessionStatePayload, SessionSwitchPayload, TabMessageFrame, message_header,
+	MonitorRemovedPayload, ProtocolError, SessionActivePayload, SessionInfo, SessionLifecycle,
+	SessionRole, SessionStatePayload, SessionSwitchPayload, TabMessageFrame, message_header,
 };
 use tracing::warn;
 
@@ -85,6 +85,10 @@ pub struct MonitorRenderSnapshot<'a, Texture> {
 	pub active_texture: Option<&'a Texture>,
 	pub previous_texture: Option<&'a Texture>,
 }
+
+// Cursor handling removed: TabServer no longer stores cursor images or
+// synthesizes cursor events. The protocol message branches remain in
+// `client::handle_message` for validation, but cursor state is ignored.
 /// Headless Tab protocol server that coordinates client sessions.
 pub struct TabServer<Texture> {
 	path: PathBuf,
@@ -97,7 +101,11 @@ pub struct TabServer<Texture> {
 	transition_state: Option<SessionTransitionState>,
 }
 
+// Cursor state types removed.
+
 impl<Texture> TabServer<Texture> {
+	// cursor_entry_mut removed
+
 	pub fn poll_fds(&self) -> Vec<RawFd> {
 		std::iter::once(self.listener_fd())
 			.chain(self.client_fds())
@@ -105,6 +113,10 @@ impl<Texture> TabServer<Texture> {
 	}
 	pub fn monitor_infos(&self) -> Vec<MonitorInfo> {
 		self.monitors.values().map(|m| m.info().clone()).collect()
+	}
+
+	pub fn active_session_id(&self) -> Option<&str> {
+		self.current_session_id.as_deref()
 	}
 
 	pub fn register_monitor(&mut self, info: MonitorInfo) {
@@ -169,6 +181,8 @@ impl<Texture> TabServer<Texture> {
 		}
 	}
 
+	// take_cursor_events removed: cursor messages are validated but ignored.
+
 	pub fn notify_frame_rendered<'a, I>(&mut self, frames: I)
 	where
 		I: IntoIterator<Item = (&'a str, &'a str)>,
@@ -219,8 +233,7 @@ impl<Texture> TabServer<Texture> {
 			.cycle_session(self.current_session_id.as_deref(), direction)?;
 		let payload = SessionSwitchPayload {
 			session_id: target.clone(),
-			animation: Some(DEFAULT_SWITCH_ANIMATION.to_string()),
-			duration: DEFAULT_SWITCH_DURATION,
+			animation: Some((DEFAULT_SWITCH_ANIMATION.to_string(), DEFAULT_SWITCH_DURATION)),
 		};
 		self.dispatch_event(ServerEvent::SessionSwitch(payload));
 		Some(target)
@@ -340,7 +353,9 @@ impl<Texture> TabServer<Texture> {
 			ServerEvent::SessionState {
 				session,
 				exclude_client_id,
-			} => self.broadcast_session_state(session, exclude_client_id),
+			} => {
+				self.broadcast_session_state(session.clone(), exclude_client_id);
+			}
 			ServerEvent::FramebufferLinked {
 				monitor_id,
 				session_id,
@@ -368,20 +383,45 @@ impl<Texture> TabServer<Texture> {
 						"swap_buffers for unknown session"
 					);
 				} else if self.current_session_id.is_none() {
-					self.activate_session(
-						session_id,
-						Some(DEFAULT_SWITCH_ANIMATION.to_string()),
-						Some(DEFAULT_SWITCH_DURATION),
-					);
+					self.activate_session(session_id, None);
 				}
 			}
 			ServerEvent::SessionSwitch(payload) => {
 				let SessionSwitchPayload {
 					session_id,
 					animation,
-					duration,
 				} = payload;
-				self.activate_session(session_id, animation, Some(duration));
+				self.activate_session(session_id, animation);
+			}
+			ServerEvent::SetCursorBuffer {
+				session_id,
+				monitor_id,
+				width,
+				height,
+				data,
+				hotspot_x,
+				hotspot_y,
+			} => {
+				let Some(monitor) = self.monitors.get_mut(&monitor_id) else {
+					warn!(monitor_id = %monitor_id, "set_cursor_buffer for unknown monitor");
+					return;
+				};
+				monitor.set_cursor(
+					&session_id,
+					Cursor::new(width, height, hotspot_x, hotspot_y, data),
+				);
+			}
+			ServerEvent::SetCursorPosition {
+				session_id,
+				monitor_id,
+				x,
+				y,
+			} => {
+				let Some(monitor) = self.monitors.get_mut(&monitor_id) else {
+					warn!(monitor_id = %monitor_id, "set_cursor_position for unknown monitor");
+					return;
+				};
+				monitor.move_cursor(&session_id, x, y);
 			}
 		}
 	}
@@ -524,20 +564,18 @@ impl<Texture> TabServer<Texture> {
 		self.broadcast_to_sessions(&frame);
 	}
 
-	fn activate_session(
-		&mut self,
-		session_id: String,
-		animation: Option<String>,
-		duration: Option<Duration>,
-	) {
+	fn activate_session(&mut self, session_id: String, animation: Option<(String, Duration)>) {
+		if self.current_session_id.as_deref() != Some(session_id.as_str()) {
+			tracing::info!(%session_id, "Activating session");
+		}
 		let already_active = self.current_session_id.as_deref() == Some(session_id.as_str());
 		if already_active {
 			return;
 		}
 		let previous = std::mem::replace(&mut self.current_session_id, Some(session_id.clone()));
-		if let (Some(anim), Some(dur)) = (animation, duration) {
+		if let Some((anim, duration)) = animation {
 			if previous.is_some() {
-				self.transition_state = Some(SessionTransitionState::new(anim, dur, previous));
+				self.transition_state = Some(SessionTransitionState::new(anim, duration, previous));
 			} else {
 				self.transition_state = None;
 			}
@@ -545,5 +583,17 @@ impl<Texture> TabServer<Texture> {
 			self.transition_state = None;
 		}
 		self.broadcast_active_session(&session_id);
+	}
+	pub fn get_cursor(&self, monitor_id: &str, session_id: &str) -> Option<Cursor> {
+		let Some(monitor) = self.monitors.get(monitor_id) else {
+			return None;
+		};
+		monitor.get_cursor(session_id)
+	}
+	pub fn remove_cursor(&mut self, monitor_id: &str, session_id: &str) {
+		let Some(monitor) = self.monitors.get_mut(monitor_id) else {
+			return;
+		};
+		monitor.clear_cursor(session_id);
 	}
 }

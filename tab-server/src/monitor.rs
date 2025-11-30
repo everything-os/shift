@@ -1,4 +1,5 @@
 use std::collections::{HashMap, VecDeque};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use tab_protocol::{BufferIndex, MonitorInfo};
@@ -8,12 +9,77 @@ pub trait MonitorIdStorage {
 	fn monitor_id(&self) -> Option<&str>;
 	fn set_monitor_id(&mut self, id: String);
 }
+#[derive(Clone)]
+pub struct Cursor {
+	width: u32,
+	height: u32,
+	hot_x: i32,
+	hot_y: i32,
+	image: Arc<[u8]>,
+	position_x: i32,
+	position_y: i32,
+	image_hash: u64,
+}
+impl Cursor {
+	pub fn new(
+		width: u32,
+		height: u32,
+		hot_x: i32,
+		hot_y: i32,
+		image: Vec<u8>
+	) -> Self {
+		Self {
+			width,
+			height,
+			hot_x,
+			hot_y,
+			image_hash: {
+				use std::hash::{Hash, Hasher};
+				let mut hasher = std::collections::hash_map::DefaultHasher::new();
+				width.hash(&mut hasher);
+				height.hash(&mut hasher);
+				hot_x.hash(&mut hasher);
+				hot_y.hash(&mut hasher);
+				image.hash(&mut hasher);
+				hasher.finish()
+			},
+			image: Arc::from(image),
+			position_x: 0,
+			position_y: 0,
+		}
+	}
+	pub fn image(&self) -> &[u8] {
+		&self.image
+	}
+	pub fn width(&self) -> u32 {
+		self.width
+	}
+	pub fn height(&self) -> u32 {
+		self.height
+	}
+	pub fn hot_x(&self) -> i32 {
+		self.hot_x
+	}
+	pub fn hot_y(&self) -> i32 {
+		self.hot_y
+	}
+	pub fn position_x(&self) -> i32 {
+		self.position_x
+	}
+	pub fn position_y(&self) -> i32 {
+		self.position_y
+	}
+	pub fn image_hash(&self) -> u64 {
+		self.image_hash
+	}
+}
 pub struct Output<Texture> {
 	buffers: [Texture; 2],
 	current: Option<BufferIndex>,
 	queue: VecDeque<(BufferIndex, Instant)>,
 	pending_page_flip: bool,
 	current_swap_started: Option<Instant>,
+	cursor: Option<Cursor>
 }
 impl<Texture> Output<Texture> {
 	pub fn current_texture(self) -> Option<Texture> {
@@ -53,6 +119,7 @@ impl<Texture> Monitor<Texture> {
 				queue: VecDeque::new(),
 				pending_page_flip: false,
 				current_swap_started: None,
+				cursor: None
 			},
 		);
 	}
@@ -105,5 +172,34 @@ impl<Texture> Monitor<Texture> {
 		} else {
 			None
 		}
+	}
+	pub fn set_cursor(&mut self, session_id: &str, cursor: Cursor) -> bool {
+		let Some(o) = self.outputs.get_mut(session_id) else {
+			return false;
+		};
+		o.cursor = Some(cursor);
+		true
+	}
+	pub fn move_cursor(&mut self, session_id: &str, position_x: i32, position_y: i32) {
+		let Some(o) = self.outputs.get_mut(session_id) else {
+			return;
+		};
+		if let Some(ref mut cursor) = o.cursor {
+			cursor.position_x = position_x;
+			cursor.position_y = position_y;
+		}
+	}
+	pub fn clear_cursor(&mut self, session_id: &str) {
+		let Some(o) = self.outputs.get_mut(session_id) else {
+			return;
+		};
+		o.cursor.take();
+	}
+	pub fn get_cursor(&self, session_id: &str) -> Option<Cursor> {
+		let Some(o) = self.outputs.get(session_id) else {
+			return None;
+		};
+		// the image data is Arc, so cloning is cheap
+		o.cursor.clone()
 	}
 }

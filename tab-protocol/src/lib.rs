@@ -53,10 +53,16 @@ pub enum TabMessage {
 	SessionReady(SessionReadyPayload),
 	SessionState(SessionStatePayload),
 	SessionActive(SessionActivePayload),
+	SetCursorFramebuffer {
+		payload: CursorFramebufferPayload,
+		data_fd: RawFd,
+	},
+	SetCursorPosition(CursorPositionPayload),
 	Error(ErrorPayload),
 	Ping,
 	Pong,
 	Unknown(TabMessageFrame),
+	RemoveCursor(RemoveCursorPayload),
 }
 impl TryFrom<TabMessageFrame> for TabMessage {
 	type Error = ProtocolError;
@@ -148,12 +154,50 @@ impl TabMessage {
 				let payload: SessionActivePayload = msg.expect_payload_json()?;
 				Ok(TabMessage::SessionActive(payload))
 			}
+			message_header::SET_CURSOR_FB => {
+				let payload: CursorFramebufferPayload = msg.expect_payload_json()?;
+				msg.expect_n_fds(1)?;
+				let data_fd = msg.fds[0];
+				Ok(TabMessage::SetCursorFramebuffer { payload, data_fd })
+			}
+			message_header::SET_CURSOR_POS => {
+				let split = msg
+					.payload
+					.as_deref()
+					.unwrap_or("")
+					.split_ascii_whitespace()
+					.collect::<Vec<_>>();
+				let [monitor_id, x_str, y_str] = split[..] else {
+					return Err(ProtocolError::InvalidPayload(
+						r#""set_cursor_position" requires 3 arguments: <monitor_id> <x> <y>"#.into(),
+					));
+				};
+				let x: i32 = x_str.parse().map_err(|_| {
+					ProtocolError::InvalidPayload(
+						r#""set_cursor_position" x argument must be an integer"#.into(),
+					)
+				})?;
+				let y: i32 = y_str.parse().map_err(|_| {
+					ProtocolError::InvalidPayload(
+						r#""set_cursor_position" y argument must be an integer"#.into(),
+					)
+				})?;
+				Ok(TabMessage::SetCursorPosition(CursorPositionPayload {
+					monitor_id: monitor_id.into(),
+					x,
+					y,
+				}))
+			}
 			message_header::ERROR => {
 				let payload: ErrorPayload = msg.expect_payload_json()?;
 				Ok(TabMessage::Error(payload))
 			}
 			message_header::PING => Ok(TabMessage::Ping),
 			message_header::PONG => Ok(TabMessage::Pong),
+			message_header::REMOVE_CURSOR => {
+				let payload: RemoveCursorPayload = msg.expect_payload_json()?;
+				Ok(TabMessage::RemoveCursor(payload))
+			}
 			_ => Ok(TabMessage::Unknown(msg)),
 		}
 	}
@@ -232,6 +276,10 @@ pub struct SwapBuffersPayload {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FrameDonePayload {
+	pub monitor_id: String,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RemoveCursorPayload {
 	pub monitor_id: String,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -468,8 +516,7 @@ pub struct MonitorRemovedPayload {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SessionSwitchPayload {
 	pub session_id: String,
-	pub animation: Option<String>,
-	pub duration: Duration,
+	pub animation: Option<(String, Duration)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -497,6 +544,22 @@ pub struct SessionStatePayload {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SessionActivePayload {
 	pub session_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CursorFramebufferPayload {
+	pub monitor_id: String,
+	pub width: u32,
+	pub height: u32,
+	pub hotspot_x: i32,
+	pub hotspot_y: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CursorPositionPayload {
+	pub monitor_id: String,
+	pub x: i32,
+	pub y: i32,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

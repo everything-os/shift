@@ -12,3 +12,4 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 const-str = "0.5"
+tracing = { workspace = true }

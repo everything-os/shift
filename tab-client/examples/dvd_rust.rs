@@ -159,6 +159,13 @@ fn handle_events(
 				}
 			}
 			TabEvent::FrameDone { .. } => {}
+			TabEvent::Error(err) => {
+				eprintln!(
+					"[Shift error] code={} message={}",
+					err.code,
+					err.message.clone().unwrap_or_else(|| "unknown".into())
+				);
+			}
 		}
 	}
 	Ok(())

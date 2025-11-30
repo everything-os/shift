@@ -20,6 +20,8 @@ pub struct ShiftApp {
 	_admin_child: Child,
 	frame_presenter: FramePresenter,
 	input: InputManager,
+	// Cursor handling removed from Shift; Tab messages for cursors are
+	// validated by the server but ignored by the compositor.
 }
 
 impl ShiftApp {
@@ -30,6 +32,10 @@ impl ShiftApp {
 		let _admin_child = Self::spawn_admin(&mut server)?;
 		server.ensure_monitors_are_up_to_date_with_easydrm(&mut *easydrm.borrow_mut());
 		let input = InputManager::new()?;
+		// Cursor manager removed: we do not manage hardware/software cursor
+		// switching in this build. Cursor-related messages are validated by
+		// the Tab server but ignored by the compositor.
+
 		Ok(Self {
 			easydrm,
 			server,
@@ -105,6 +111,8 @@ impl ShiftApp {
 
 	fn pump_once(&mut self) -> Result<(), ShiftError> {
 		let snapshot = self.server.render_snapshot();
+		// Capture any small snapshot-derived state early if needed.
+
 		let frame_pairs = {
 			let mut edrm = self.easydrm.borrow_mut();
 			let rendered = self.frame_presenter.render(&snapshot, &mut edrm)?;
@@ -114,6 +122,9 @@ impl ShiftApp {
 			edrm.poll_events_ex(poll_fds)?;
 			rendered
 		};
+
+		// Drop the snapshot to release the immutable borrow on `self.server`.
+		drop(snapshot);
 		self
 			.server
 			.ensure_monitors_are_up_to_date_with_easydrm(&mut *self.easydrm.borrow_mut());
@@ -127,6 +138,11 @@ impl ShiftApp {
 			self.handle_input_event(event);
 		}
 		self.notify_frames(&frame_pairs);
+
+		// Cursor messages are validated by the Tab server but ignored by the
+		// compositor in this build. We still capture active/transition state
+		// above for other uses but do not drive hardware cursor updates here.
+
 		self.server.pump()?;
 		Ok(())
 	}
@@ -151,6 +167,9 @@ impl ShiftApp {
 		}
 		self.server.forward_input_event(event);
 	}
+
+	// Cursor event handler removed: cursor messages are validated by the
+	// TabServer but ignored by the compositor.
 
 	fn handle_session_shortcut(&mut self, event: &InputEventPayload) -> bool {
 		const KEY_LEFT: u32 = 105;

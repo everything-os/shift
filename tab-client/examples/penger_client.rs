@@ -82,6 +82,13 @@ fn handle_events(events: &[TabEvent], monitor_id: &mut Option<String>) {
 			TabEvent::Input(_) => {}
 			TabEvent::SessionCreated(_) => {}
 			TabEvent::FrameDone { .. } => {}
+			TabEvent::Error(err) => {
+				eprintln!(
+					"[Shift error] code={} message={}",
+					err.code,
+					err.message.clone().unwrap_or_else(|| "unknown".into())
+				);
+			}
 		}
 	}
 }

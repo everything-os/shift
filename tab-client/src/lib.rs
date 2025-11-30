@@ -5,8 +5,8 @@
 
 use std::collections::{HashMap, VecDeque};
 use std::fs::{File, OpenOptions};
-use std::io::Read;
-use std::os::fd::{AsRawFd, BorrowedFd, OwnedFd, RawFd};
+use std::io::{Read, Write};
+use std::os::fd::{AsRawFd, BorrowedFd, FromRawFd, IntoRawFd, OwnedFd, RawFd};
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{self, Receiver, Sender};
@@ -22,10 +22,11 @@ use nix::{
 	unistd::{pipe2, read, write},
 };
 use tab_protocol::{
-	AuthOkPayload, AuthPayload, DEFAULT_SOCKET_PATH, FrameDonePayload, FramebufferLinkPayload,
-	HelloPayload, InputEventPayload, MonitorAddedPayload, MonitorInfo, MonitorRemovedPayload,
-	PROTOCOL_VERSION, ProtocolError, SessionCreatedPayload, SessionInfo, SessionReadyPayload,
-	TabMessage, TabMessageFrame, message_header,
+	AuthOkPayload, AuthPayload, CursorFramebufferPayload, CursorPositionPayload, DEFAULT_SOCKET_PATH,
+	ErrorPayload, FrameDonePayload, FramebufferLinkPayload, HelloPayload, InputEventPayload,
+	MonitorAddedPayload, MonitorInfo, MonitorRemovedPayload, PROTOCOL_VERSION, ProtocolError,
+	SessionCreatedPayload, SessionInfo, SessionReadyPayload, TabMessage, TabMessageFrame,
+	message_header,
 };
 
 mod egl;
@@ -62,6 +63,8 @@ pub enum TabClientError {
 	NoFreeBuffers(String),
 	#[error("monitor {0} not found")]
 	UnknownMonitor(String),
+	#[error("cursor pixel data length {0} bytes does not match expected {1} bytes")]
+	InvalidCursorData(usize, usize),
 }
 
 const EGL_PLATFORM_GBM_KHR: egl_sys::types::EGLenum = 0x31D7;
@@ -107,6 +110,7 @@ pub enum TabEvent {
 	SessionState(SessionInfo),
 	Input(InputEventPayload),
 	SessionCreated(SessionCreatedPayload),
+	Error(ErrorPayload),
 }
 
 #[derive(Clone, Copy)]
@@ -342,6 +346,10 @@ impl TabClient {
 		ids
 	}
 
+	pub fn monitor_info(&self, id: &str) -> Option<MonitorInfo> {
+		self.outputs.get(id).map(|output| output.info.clone())
+	}
+
 	pub fn authenticate(
 		&mut self,
 		token: impl Into<String>,
@@ -480,6 +488,52 @@ impl TabClient {
 		Ok(())
 	}
 
+	pub fn set_cursor_framebuffer(
+		&mut self,
+		monitor_id: &str,
+		width: u32,
+		height: u32,
+		hotspot_x: i32,
+		hotspot_y: i32,
+		pixels: &[u8],
+	) -> Result<(), TabClientError> {
+		let expected = width as usize * height as usize * 4;
+		if pixels.len() != expected {
+			return Err(TabClientError::InvalidCursorData(pixels.len(), expected));
+		}
+		let payload = CursorFramebufferPayload {
+			monitor_id: monitor_id.to_string(),
+			width,
+			height,
+			hotspot_x,
+			hotspot_y,
+		};
+		let (read_fd, write_fd) =
+			pipe2(OFlag::O_CLOEXEC).map_err(|err| TabClientError::Io(err.into()))?;
+		let mut frame = TabMessageFrame::json(message_header::SET_CURSOR_FB, payload);
+		let read_raw = read_fd.into_raw_fd();
+		frame.fds.push(read_raw);
+		self.send(&frame)?;
+		let data = pixels.to_vec();
+		let write_raw = write_fd.into_raw_fd();
+		std::thread::spawn(move || {
+			let mut writer = unsafe { File::from_raw_fd(write_raw) };
+			let _ = writer.write_all(&data);
+		});
+		Ok(())
+	}
+
+	pub fn set_cursor_position(
+		&mut self,
+		monitor_id: &str,
+		x: i32,
+		y: i32,
+	) -> Result<(), TabClientError> {
+		assert!(monitor_id.chars().all(|c| !c.is_whitespace()));
+		let frame = TabMessageFrame::raw(message_header::SET_CURSOR_POS, format!("{monitor_id} {x} {y}"));
+		self.send(&frame)
+	}
+
 	pub fn poll_events(&mut self) -> Result<Vec<TabEvent>, TabClientError> {
 		let mut events = Vec::new();
 		let (ready, revents) = {
@@ -556,6 +610,10 @@ impl TabClient {
 			}
 			TabMessage::InputEvent(payload) => {
 				events.push(TabEvent::Input(payload));
+			}
+			TabMessage::Error(payload) => {
+				self.record_error(payload.message.clone().unwrap_or(payload.code.clone()));
+				events.push(TabEvent::Error(payload));
 			}
 			other => {
 				if let TabMessage::Error(payload) = &other {

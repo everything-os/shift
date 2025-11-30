@@ -5,12 +5,15 @@ use nix::errno::Errno;
 use nix::sys::socket::{ControlMessageOwned, MsgFlags, recvmsg};
 use std::io::IoSliceMut;
 
+use nix::unistd::close;
+
 use tab_protocol::{ProtocolError, TabMessage, TabMessageFrame};
 
 #[derive(Debug)]
 pub struct TabConnection {
 	stream: UnixStream,
 	buffer: Vec<u8>,
+	pending_fds: Vec<RawFd>,
 }
 
 impl TabConnection {
@@ -19,6 +22,7 @@ impl TabConnection {
 		Ok(Self {
 			stream,
 			buffer: Vec::new(),
+			pending_fds: Vec::new(),
 		})
 	}
 
@@ -58,12 +62,23 @@ impl TabConnection {
 		if self.buffer.is_empty() {
 			return Ok(None);
 		}
-		match TabMessageFrame::parse_from_bytes(&self.buffer, Vec::new())? {
+		let fds = std::mem::take(&mut self.pending_fds);
+		let parse_result = if fds.is_empty() {
+			TabMessageFrame::parse_from_bytes(&self.buffer, Vec::new())?
+		} else {
+			TabMessageFrame::parse_from_bytes(&self.buffer, fds.clone())?
+		};
+		match parse_result {
 			Some((frame, consumed)) => {
 				self.buffer.drain(..consumed);
 				Ok(Some(frame))
 			}
-			None => Ok(None),
+			None => {
+				if !fds.is_empty() {
+					self.pending_fds = fds;
+				}
+				Ok(None)
+			}
 		}
 	}
 
@@ -97,18 +112,20 @@ impl TabConnection {
 					}
 					(bytes, fds)
 				};
-				let mut data = Vec::with_capacity(bytes);
-				data.extend_from_slice(&buf[..bytes]);
-				let parsed =
-					TabMessageFrame::parse_from_bytes(&data, fds)?.ok_or(ProtocolError::UnexpectedEof)?;
-				let (frame, consumed) = parsed;
-				if consumed < data.len() {
-					if !frame.fds.is_empty() {
-						return Err(ProtocolError::TrailingData);
+				if !fds.is_empty() {
+					if !self.pending_fds.is_empty() {
+						for fd in fds {
+							let _ = close(fd);
+						}
+						return Err(ProtocolError::InvalidPayload(
+							"received file descriptors for a frame while previous frame is incomplete"
+								.into(),
+						));
 					}
-					self.buffer.extend_from_slice(&data[consumed..]);
+					self.pending_fds = fds;
 				}
-				Ok(Some(frame))
+				self.buffer.extend_from_slice(&buf[..bytes]);
+				self.try_parse_buffer()
 			}
 		}
 	}
@@ -117,5 +134,13 @@ impl TabConnection {
 impl AsRawFd for TabConnection {
 	fn as_raw_fd(&self) -> RawFd {
 		self.stream.as_raw_fd()
+	}
+}
+
+impl Drop for TabConnection {
+	fn drop(&mut self) {
+		for fd in self.pending_fds.drain(..) {
+			let _ = close(fd);
+		}
 	}
 }

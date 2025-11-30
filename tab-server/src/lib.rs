@@ -10,6 +10,7 @@ pub use id::generate_id;
 #[cfg(feature = "easydrm")]
 pub use monitor::MonitorIdStorage;
 pub use server::{
-	MonitorRenderSnapshot, RenderSnapshot, RenderTransition, TabServer, TabServerError,
+	MonitorRenderSnapshot, RenderSnapshot, RenderTransition, TabServer,
+	TabServerError,
 };
 pub use session::{Session, SessionRegistry};

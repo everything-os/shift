@@ -5,6 +5,7 @@ use std::os::unix::net::UnixStream;
 use nix::errno::Errno;
 use nix::sys::socket::{ControlMessage, ControlMessageOwned, MsgFlags, recvmsg, sendmsg};
 use serde::Serialize;
+use tracing::trace;
 
 use crate::{HelloPayload, MessageHeader, PROTOCOL_VERSION, ProtocolError};
 
@@ -153,9 +154,11 @@ impl TabMessageFrame {
 		fds: Vec<RawFd>,
 	) -> Result<Option<(Self, usize)>, ProtocolError> {
 		let Some(first_nl) = bytes.iter().position(|b| *b == b'\n') else {
+			trace!(total = bytes.len(), "awaiting header newline");
 			return Ok(None);
 		};
 		let Some(second_rel) = bytes[first_nl + 1..].iter().position(|b| *b == b'\n') else {
+			trace!(total = bytes.len(), first_nl, "awaiting payload newline");
 			return Ok(None);
 		};
 		let second_nl = first_nl + 1 + second_rel;
@@ -172,6 +175,14 @@ impl TabMessageFrame {
 		fds: Vec<RawFd>,
 	) -> Result<Self, ProtocolError> {
 		let header = String::from_utf8(header_bytes.to_vec())?;
+		if payload_bytes.len() > 1024 {
+			trace!(
+				header = header.as_str(),
+				payload_len = payload_bytes.len(),
+				payload_preview = %hex_preview(payload_bytes),
+				"parsing large payload"
+			);
+		}
 		let payload_str = String::from_utf8(payload_bytes.to_vec())?;
 		Ok(Self {
 			header: header.into(),
@@ -183,4 +194,14 @@ impl TabMessageFrame {
 			fds,
 		})
 	}
+}
+
+fn hex_preview(bytes: &[u8]) -> String {
+	const MAX: usize = 16;
+	bytes
+		.iter()
+		.take(MAX)
+		.map(|b| format!("{:02x}", b))
+		.collect::<Vec<_>>()
+		.join(" ")
 }

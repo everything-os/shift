@@ -46,6 +46,16 @@ char* tab_client_get_monitor_id(TabClientHandle* handle, size_t index);
 bool tab_client_send_ready(TabClientHandle* handle);
 TabAcquireResult tab_client_acquire_frame(TabClientHandle* handle, const char* monitor_id, TabFrameTarget* target);
 bool tab_client_swap_buffers(TabClientHandle* handle, const char* monitor_id);
+bool tab_client_set_cursor_fb(
+	TabClientHandle* handle,
+	const char* monitor_id,
+	uint32_t width,
+	uint32_t height,
+	int32_t hotspot_x,
+	int32_t hotspot_y,
+	const uint8_t* pixels,
+	size_t pixel_len);
+bool tab_client_set_cursor_pos(TabClientHandle* handle, const char* monitor_id, int32_t x, int32_t y);
 
 int  tab_client_get_socket_fd(TabClientHandle* handle);
 int  tab_client_get_swap_fd(TabClientHandle* handle);

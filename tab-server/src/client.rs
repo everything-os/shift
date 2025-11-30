@@ -1,14 +1,16 @@
-use std::os::fd::RawFd;
+use std::fs::File;
+use std::io::Read;
+use std::os::fd::{FromRawFd, RawFd};
 use std::sync::Arc;
 
 use crate::connection::TabConnection;
 use crate::server::TabServerError;
 use crate::session::SessionRegistry;
 use tab_protocol::{
-	AuthErrorPayload, AuthOkPayload, ErrorPayload, FramebufferLinkPayload, MonitorInfo,
-	SessionCreatePayload, SessionCreatedPayload, SessionInfo, SessionLifecycle, SessionReadyPayload,
-	SessionRole, SessionSwitchPayload, SwapBuffersPayload, TabMessage, TabMessageFrame,
-	message_header,
+	AuthErrorPayload, AuthOkPayload, CursorFramebufferPayload, CursorPositionPayload, ErrorPayload,
+	FramebufferLinkPayload, MonitorInfo, SessionCreatePayload, SessionCreatedPayload, SessionInfo,
+	SessionLifecycle, SessionReadyPayload, SessionRole, SessionSwitchPayload, SwapBuffersPayload,
+	TabMessage, TabMessageFrame, message_header,
 };
 use tracing::{debug, error, info, warn};
 
@@ -141,6 +143,18 @@ impl<Texture> Client<Texture> {
 					payload: swap,
 				});
 			}
+			TabMessage::SetCursorFramebuffer { payload, data_fd } => {
+				// Keep the message match branch for cursor framebuffer messages
+				// but do not forward cursor events to the server. We validate
+				// the payload and read the data_fd to consume the sent bytes so
+				// the protocol remains well-formed, but we do not store or
+				// propagate cursor state.
+				events.extend(self.handle_set_cursor_framebuffer(payload, data_fd));
+			}
+			TabMessage::SetCursorPosition(payload) => {
+				// Validate and ignore cursor position messages.
+				events.extend(self.handle_set_cursor_position(payload));
+			}
 			other => {
 				debug!(client_id = %self.id, ?other, "Received message");
 			}
@@ -173,9 +187,84 @@ pub enum ServerEvent<Texture> {
 		session_id: String,
 		payload: SwapBuffersPayload,
 	},
+	SetCursorBuffer {
+		session_id: String,
+		monitor_id: String,
+		width: u32,
+		height: u32,
+		data: Vec<u8>,
+		hotspot_x: i32,
+		hotspot_y: i32,
+	},
+	SetCursorPosition {
+		session_id: String,
+		monitor_id: String,
+		x: i32,
+		y: i32,
+	},
+	
 }
 
 impl<Texture> Client<Texture> {
+	#[tracing::instrument(skip(self))]
+	fn handle_set_cursor_framebuffer(
+		&mut self,
+		payload: CursorFramebufferPayload,
+		data_fd: RawFd,
+	) -> Option<ServerEvent<Texture>> {
+		if !self.session.authenticated {
+			self.send_error("not_authenticated", Some("Authenticate first".into()));
+			return None;
+		}
+		let Some(session_id) = self.session.session_id.clone() else {
+			self.send_error("unknown_session", Some("Server missing session id".into()));
+			return None;
+		};
+		let mut reader = unsafe { File::from_raw_fd(data_fd) };
+		let mut data = Vec::new();
+		if let Err(err) = reader.read_to_end(&mut data) {
+			self.send_error("cursor_pipe", Some(err.to_string()));
+			return None;
+		}
+		let expected = payload.width as usize * payload.height as usize * 4;
+		if data.len() != expected {
+			self.send_error(
+				"cursor_size",
+				Some(format!(
+					"Cursor payload was {} bytes but expected {} bytes",
+					data.len(),
+					expected
+				)),
+			);
+			return None;
+		}
+		
+		Some(ServerEvent::SetCursorBuffer {
+			monitor_id: payload.monitor_id,
+			session_id,
+			width: payload.width,
+			height: payload.height,
+			hotspot_x: payload.hotspot_x,
+			hotspot_y: payload.hotspot_y,
+			data,
+		})
+	}
+
+	fn handle_set_cursor_position(
+		&mut self,
+		payload: CursorPositionPayload,
+	) -> Option<ServerEvent<Texture>> {
+		if !self.session.authenticated {
+			self.send_error("not_authenticated", Some("Authenticate first".into()));
+			return None;
+		}
+		let Some(session_id) = self.session.session_id.clone() else {
+			self.send_error("unknown_session", Some("Server missing session id".into()));
+			return None;
+		};
+		Some(ServerEvent::SetCursorPosition { monitor_id: payload.monitor_id, x: payload.x, y: payload.y, session_id })
+	}
+
 	fn handle_session_create(
 		&mut self,
 		payload: SessionCreatePayload,
