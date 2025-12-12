@@ -53,11 +53,11 @@ For Hyprside, it powers the entire session lifecycle:
 
 ## 🚧 Status
 
-- [ ] Define the protocol
-- [ ] Receive connections from clients
-- [ ] Authentication
-- [ ] Receive frame commits and render them on the screen (with vsync)
-- [ ] Session switching
+- [X] Define the protocol
+- [X] Receive connections from clients
+- [X] Authentication
+- [X] Receive frame commits and render them on the screen (with vsync)
+- [X] Session switching
 - [ ] Allow disabling vsync
-- [ ] Inputs
+- [X] Inputs
 - [ ] Audio isolation
