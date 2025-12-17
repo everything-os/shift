@@ -99,7 +99,7 @@ pub unsafe extern "C" fn tab_client_next_event(handle: *mut TabClientHandle, eve
     };
 
     if let Some(rust_event) = client.event_queue.pop_front() {
-        println!("[tab-client] Received event: {:?}", &rust_event);
+
         unsafe { *event = convert_event(rust_event) };
         true
     } else {

@@ -5,7 +5,7 @@ edition = { workspace = true }
 
 [lib]
 name = "tab_client"
-crate-type = ["rlib", "cdylib", "staticlib"]
+crate-type = ["rlib", "staticlib"]
 
 [dependencies]
 libc = "0.2"

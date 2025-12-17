@@ -244,6 +244,8 @@ pub enum InputEventPayload {
 		y: f64,
 		dx: f64,
 		dy: f64,
+		unaccel_dx: f64,
+		unaccel_dy: f64,
 	},
 	PointerMotionAbsolute {
 		device: u32,

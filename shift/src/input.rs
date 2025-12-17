@@ -48,6 +48,7 @@ impl InputManager {
 		ctx
 			.udev_assign_seat("seat0")
 			.map_err(|_| ShiftError::Libinput("failed to assign libinput seat".into()))?;
+		
 		Ok(Self {
 			ctx,
 			cursor: CursorState::default(),
@@ -167,7 +168,10 @@ impl InputManager {
 		let device = self.device_id_for(&event.device());
 		let dx = event.dx();
 		let dy = event.dy();
+		let unaccel_dx = event.dx_unaccelerated();
+		let unaccel_dy = event.dy_unaccelerated();
 		let (x, y) = self.cursor.update_relative(dx, dy);
+		
 		vec![InputEventPayload::PointerMotion {
 			device,
 			time_usec: event.time_usec(),
@@ -175,6 +179,8 @@ impl InputManager {
 			y,
 			dx,
 			dy,
+			unaccel_dx,
+			unaccel_dy,
 		}]
 	}
 

@@ -93,6 +93,7 @@ typedef struct {
     uint64_t time_usec;
     double x, y;
     double dx, dy;
+    double unaccel_dx, unaccel_dy;
 } TabInputPointerMotion;
 
 typedef struct {

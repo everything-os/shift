@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::os::fd::RawFd;
+use std::os::unix::fs::PermissionsExt;
 use std::process::{Child, Command, Stdio};
 use std::rc::{Rc, Weak};
 
@@ -73,6 +74,8 @@ impl ShiftApp {
 				.map_err(|e| TabServerError::Texture(e.to_string()))
 			}
 		})?;
+		// Allow anyone to connect to this socket from any OS user
+		std::fs::set_permissions(server.path(), std::fs::Permissions::from_mode(0o666))?;
 		Ok(server)
 	}
 

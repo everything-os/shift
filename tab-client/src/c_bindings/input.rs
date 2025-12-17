@@ -39,6 +39,8 @@ pub struct TabInputPointerMotion {
 	pub y: f64,
 	pub dx: f64,
 	pub dy: f64,
+	pub unaccel_dx: f64,
+	pub unaccel_dy: f64,
 }
 
 /// Absolute pointer position event
@@ -362,6 +364,8 @@ pub(super) fn convert_input_event(payload: &InputEventPayload) -> TabInputEvent 
 			y,
 			dx,
 			dy,
+			unaccel_dx,
+			unaccel_dy,
 		} => {
 			kind = TabInputEventKind::TabInputPointerMotion;
 			unsafe {
@@ -372,6 +376,8 @@ pub(super) fn convert_input_event(payload: &InputEventPayload) -> TabInputEvent 
                     y: *y,
                     dx: *dx,
                     dy: *dy,
+					unaccel_dx: *unaccel_dx,
+					unaccel_dy: *unaccel_dy,
                 };
             }
 		}
@@ -562,18 +568,7 @@ pub(super) fn convert_input_event(payload: &InputEventPayload) -> TabInputEvent 
             }
 		}
 		_ => {
-			// For unimplemented events, return a dummy pointer motion
-			kind = TabInputEventKind::TabInputPointerMotion;
-			unsafe {
-                data.pointer_motion = TabInputPointerMotion {
-                    device: 0,
-                    time_usec: 0,
-                    x: 0.0,
-                    y: 0.0,
-                    dx: 0.0,
-                    dy: 0.0,
-                };
-            }
+			unimplemented!("Input event conversion not implemented for this variant");
 		}
 	};
 
