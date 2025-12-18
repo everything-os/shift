@@ -24,12 +24,7 @@ pub enum RendererError {
 }
 
 const QUAD_POSITIONS: [f32; 8] = [-1.0, -1.0, 1.0, -1.0, -1.0, 1.0, 1.0, 1.0];
-const QUAD_TEX_COORDS: [f32; 8] = [
-	0.0, 0.0,
-	1.0, 0.0,
-	0.0, 1.0,
-	1.0, 1.0
-];
+const QUAD_TEX_COORDS: [f32; 8] = [0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0];
 const MAX_BLUR_PASSES: usize = 5;
 const MIN_KAWASE_RADIUS: f32 = 2.0;
 const MAX_KAWASE_RADIUS: f32 = 20.0;

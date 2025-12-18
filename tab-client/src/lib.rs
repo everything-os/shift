@@ -347,7 +347,10 @@ impl TabClient {
 		ids
 	}
 	pub fn monitor_info(&self, monitor_id: &str) -> Option<MonitorInfo> {
-		self.outputs.get(monitor_id).map(|output| output.info.clone())
+		self
+			.outputs
+			.get(monitor_id)
+			.map(|output| output.info.clone())
 	}
 	pub fn authenticate(
 		&mut self,
@@ -670,7 +673,8 @@ impl GraphicsContext {
 		Ok((context, gl))
 	}
 	fn ensure_make_current(&self) -> Result<(), TabClientError> {
-		self.egl
+		self
+			.egl
 			.make_current(self.display, None, None, Some(self.context))
 			.map_err(|err| TabClientError::Egl(err.to_string()))
 	}
@@ -826,7 +830,7 @@ struct OutputBuffer {
 	gl: Gles2,
 	egl_ext: egl_sys::Egl,
 	display: kegl::Display,
-	dmabuf: Dmabuf
+	dmabuf: Dmabuf,
 }
 
 impl OutputBuffer {
@@ -885,10 +889,14 @@ impl OutputBuffer {
 		})
 	}
 
-	fn export_dmabuf(image: &egl_sys::types::EGLImageKHR, egl_ext: &egl_sys::Egl, display: &kegl::Display) -> Result<Dmabuf, TabClientError> {
+	fn export_dmabuf(
+		image: &egl_sys::types::EGLImageKHR,
+		egl_ext: &egl_sys::Egl,
+		display: &kegl::Display,
+	) -> Result<Dmabuf, TabClientError> {
 		let mut fourcc = 0;
 		let mut num_planes = 0;
-		
+
 		let query = unsafe {
 			egl_ext.ExportDMABUFImageQueryMESA(
 				display.as_ptr(),
@@ -907,13 +915,7 @@ impl OutputBuffer {
 		let mut stride = 0;
 		let mut offset = 0;
 		let exported = unsafe {
-			egl_ext.ExportDMABUFImageMESA(
-				display.as_ptr(),
-				*image,
-				&mut fd,
-				&mut stride,
-				&mut offset,
-			)
+			egl_ext.ExportDMABUFImageMESA(display.as_ptr(), *image, &mut fd, &mut stride, &mut offset)
 		};
 		if exported == 0 {
 			return Err(TabClientError::Egl(

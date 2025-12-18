@@ -21,7 +21,7 @@ pub struct TabMonitorInfo {
 /// Get the number of monitors
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn tab_client_get_monitor_count(handle: *mut TabClientHandle) -> usize {
-	let client = match unsafe{ handle.as_mut() } {
+	let client = match unsafe { handle.as_mut() } {
 		Some(h) => &h.inner,
 		None => return 0,
 	};
@@ -35,7 +35,7 @@ pub unsafe extern "C" fn tab_client_get_monitor_id(
 	handle: *mut TabClientHandle,
 	index: usize,
 ) -> *mut c_char {
-	let client = match unsafe{ handle.as_mut() } {
+	let client = match unsafe { handle.as_mut() } {
 		Some(h) => &h.inner,
 		None => return std::ptr::null_mut(),
 	};
@@ -54,11 +54,10 @@ pub unsafe extern "C" fn tab_client_get_monitor_info(
 	handle: *mut TabClientHandle,
 	monitor_id: *const c_char,
 ) -> TabMonitorInfo {
-	let client = match unsafe{ handle.as_mut() } {
+	let client = match unsafe { handle.as_mut() } {
 		Some(h) => &h.inner,
 		None => return std::mem::zeroed(),
 	};
-
 
 	let id = match unsafe { CStr::from_ptr(monitor_id) }.to_str() {
 		Ok(s) => s,
@@ -68,9 +67,14 @@ pub unsafe extern "C" fn tab_client_get_monitor_info(
 		Some(info) => info,
 		None => return std::mem::zeroed(),
 	};
-	TabMonitorInfo { id: CString::new(monitor_info.id).unwrap().into_raw(), width: monitor_info.width, height: monitor_info.height, refresh_rate: monitor_info.refresh_rate, name: CString::new(monitor_info.name).unwrap().into_raw() }
+	TabMonitorInfo {
+		id: CString::new(monitor_info.id).unwrap().into_raw(),
+		width: monitor_info.width,
+		height: monitor_info.height,
+		refresh_rate: monitor_info.refresh_rate,
+		name: CString::new(monitor_info.name).unwrap().into_raw(),
+	}
 }
-
 
 // free monitor info
 #[unsafe(no_mangle)]

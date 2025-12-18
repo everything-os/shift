@@ -14,7 +14,7 @@ pub unsafe extern "C" fn tab_client_connect(
 	let path = if socket_path.is_null() {
 		DEFAULT_SOCKET_PATH.to_string()
 	} else {
-		match unsafe{ CStr::from_ptr(socket_path) }.to_str() {
+		match unsafe { CStr::from_ptr(socket_path) }.to_str() {
 			Ok(s) => s.to_string(),
 			Err(_) => return std::ptr::null_mut(),
 		}
@@ -24,13 +24,16 @@ pub unsafe extern "C" fn tab_client_connect(
 		return std::ptr::null_mut();
 	}
 
-	let token_str = match unsafe{ CStr::from_ptr(token) }.to_str() {
+	let token_str = match unsafe { CStr::from_ptr(token) }.to_str() {
 		Ok(s) => s.to_string(),
 		Err(_) => return std::ptr::null_mut(),
 	};
 
 	match TabClient::connect(path, token_str) {
-		Ok(client) => Box::into_raw(Box::new(TabClientHandle { inner: Box::new(client), event_queue: VecDeque::new() })),
+		Ok(client) => Box::into_raw(Box::new(TabClientHandle {
+			inner: Box::new(client),
+			event_queue: VecDeque::new(),
+		})),
 		Err(_) => std::ptr::null_mut(),
 	}
 }
@@ -64,7 +67,7 @@ pub unsafe extern "C" fn tab_client_string_free(s: *mut c_char) {
 /// Take and clear the last error message. Caller must free with `tab_client_string_free()`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn tab_client_take_error(handle: *mut TabClientHandle) -> *mut c_char {
-	let client = match unsafe{ handle.as_mut() } {
+	let client = match unsafe { handle.as_mut() } {
 		Some(h) => &mut h.inner,
 		None => return std::ptr::null_mut(),
 	};
@@ -86,7 +89,7 @@ pub unsafe extern "C" fn tab_client_take_error(handle: *mut TabClientHandle) -> 
 /// Get server name from hello payload
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn tab_client_get_server_name(handle: *mut TabClientHandle) -> *mut c_char {
-	let client = match unsafe{ handle.as_mut() } {
+	let client = match unsafe { handle.as_mut() } {
 		Some(h) => &h.inner,
 		None => return std::ptr::null_mut(),
 	};
@@ -100,7 +103,7 @@ pub unsafe extern "C" fn tab_client_get_server_name(handle: *mut TabClientHandle
 /// Get protocol version from hello payload
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn tab_client_get_protocol_name(handle: *mut TabClientHandle) -> *mut c_char {
-	let client = match unsafe{ handle.as_mut() } {
+	let client = match unsafe { handle.as_mut() } {
 		Some(h) => &h.inner,
 		None => return std::ptr::null_mut(),
 	};
@@ -113,7 +116,7 @@ pub unsafe extern "C" fn tab_client_get_protocol_name(handle: *mut TabClientHand
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn tab_client_get_socket_fd(handle: *mut TabClientHandle) -> i32 {
-	let client = match unsafe{ handle.as_mut() } {
+	let client = match unsafe { handle.as_mut() } {
 		Some(h) => &h.inner,
 		None => return -1,
 	};
@@ -123,7 +126,7 @@ pub unsafe extern "C" fn tab_client_get_socket_fd(handle: *mut TabClientHandle) 
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn tab_client_get_swap_fd(handle: *mut TabClientHandle) -> i32 {
-	let client = match unsafe{ handle.as_mut() } {
+	let client = match unsafe { handle.as_mut() } {
 		Some(h) => &h.inner,
 		None => return -1,
 	};

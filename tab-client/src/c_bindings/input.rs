@@ -1,3 +1,5 @@
+use tab_protocol::{SwitchState, SwitchType, TipState};
+
 use super::*;
 
 #[repr(C)]
@@ -7,8 +9,6 @@ pub enum TabInputEventKind {
 	TabInputPointerMotionAbsolute = 1,
 	TabInputPointerButton = 2,
 	TabInputPointerAxis = 3,
-	TabInputPointerAxisStop = 4,
-	TabInputPointerAxisDiscrete = 5,
 	TabInputKey = 6,
 	TabInputTouchDown = 7,
 	TabInputTouchUp = 8,
@@ -23,6 +23,16 @@ pub enum TabInputEventKind {
 	TabInputTabletPadRing = 17,
 	TabInputTabletPadStrip = 18,
 	TabInputSwitchToggle = 19,
+	TabInputGestureSwipeBegin = 20,
+    TabInputGestureSwipeUpdate = 21,
+    TabInputGestureSwipeEnd = 22,
+
+    TabInputGesturePinchBegin = 23,
+    TabInputGesturePinchUpdate = 24,
+    TabInputGesturePinchEnd = 25,
+
+    TabInputGestureHoldBegin = 26,
+    TabInputGestureHoldEnd = 27,
 }
 
 // ============================================================================
@@ -96,27 +106,8 @@ pub struct TabInputPointerAxis {
 	pub time_usec: u64,
 	pub orientation: TabAxisOrientation,
 	pub delta: f64,
-	pub delta_discrete: i32, // -1 means NULL/invalid
-	pub source: TabAxisSource,
-}
-
-/// Pointer axis stop event
-#[repr(C)]
-#[derive(Debug, Clone, Copy)]
-pub struct TabInputPointerAxisStop {
-	pub device: u32,
-	pub time_usec: u64,
-	pub orientation: TabAxisOrientation,
-}
-
-/// Pointer discrete axis event
-#[repr(C)]
-#[derive(Debug, Clone, Copy)]
-pub struct TabInputPointerAxisDiscrete {
-	pub device: u32,
-	pub time_usec: u64,
-	pub orientation: TabAxisOrientation,
 	pub delta_discrete: i32,
+	pub source: TabAxisSource,
 }
 
 #[repr(C)]
@@ -211,13 +202,13 @@ pub struct TabInputTabletToolProximity {
 pub struct TabTabletToolAxes {
 	pub x: f64,
 	pub y: f64,
-	pub pressure: f64,      // -1.0 = invalid
-	pub distance: f64,      // -1.0 = invalid
-	pub tilt_x: f64,        // -1.0 = invalid
-	pub tilt_y: f64,        // -1.0 = invalid
-	pub rotation: f64,      // -1.0 = invalid
-	pub slider: f64,        // -1.0 = invalid
-	pub wheel_delta: f64,   // -1.0 = invalid
+	pub pressure: f64,    // -1.0 = invalid
+	pub distance: f64,    // -1.0 = invalid
+	pub tilt_x: f64,      // -1.0 = invalid
+	pub tilt_y: f64,      // -1.0 = invalid
+	pub rotation: f64,    // -1.0 = invalid
+	pub slider: f64,      // -1.0 = invalid
+	pub wheel_delta: f64, // -1.0 = invalid
 }
 
 /// Tablet tool axis event
@@ -313,6 +304,73 @@ pub struct TabInputSwitchToggle {
 	pub switch_type: TabSwitchType,
 	pub state: TabSwitchState,
 }
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct TabInputGestureSwipeBegin {
+    pub device: u32,
+    pub time_usec: u64,
+    pub fingers: u32,
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct TabInputGestureSwipeUpdate {
+    pub device: u32,
+    pub time_usec: u64,
+    pub fingers: u32,
+    pub dx: f64,
+    pub dy: f64,
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct TabInputGestureSwipeEnd {
+    pub device: u32,
+    pub time_usec: u64,
+    pub cancelled: bool,
+}
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct TabInputGesturePinchBegin {
+    pub device: u32,
+    pub time_usec: u64,
+    pub fingers: u32,
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct TabInputGesturePinchUpdate {
+    pub device: u32,
+    pub time_usec: u64,
+    pub fingers: u32,
+    pub dx: f64,
+    pub dy: f64,
+    pub scale: f64,
+    pub rotation: f64,
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct TabInputGesturePinchEnd {
+    pub device: u32,
+    pub time_usec: u64,
+    pub cancelled: bool,
+}
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct TabInputGestureHoldBegin {
+    pub device: u32,
+    pub time_usec: u64,
+    pub fingers: u32,
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct TabInputGestureHoldEnd {
+    pub device: u32,
+    pub time_usec: u64,
+    pub cancelled: bool,
+}
 
 // ============================================================================
 // TAGGED UNION FOR INPUT EVENTS
@@ -325,8 +383,6 @@ pub union TabInputEventData {
 	pub pointer_motion_absolute: TabInputPointerMotionAbsolute,
 	pub pointer_button: TabInputPointerButton,
 	pub pointer_axis: TabInputPointerAxis,
-	pub pointer_axis_stop: TabInputPointerAxisStop,
-	pub pointer_axis_discrete: TabInputPointerAxisDiscrete,
 	pub key: TabInputKey,
 	pub touch_down: TabInputTouchDown,
 	pub touch_up: TabInputTouchUp,
@@ -341,6 +397,17 @@ pub union TabInputEventData {
 	pub tablet_pad_ring: TabInputTabletPadRing,
 	pub tablet_pad_strip: TabInputTabletPadStrip,
 	pub switch_toggle: TabInputSwitchToggle,
+
+    pub gesture_swipe_begin: TabInputGestureSwipeBegin,
+    pub gesture_swipe_update: TabInputGestureSwipeUpdate,
+    pub gesture_swipe_end: TabInputGestureSwipeEnd,
+
+    pub gesture_pinch_begin: TabInputGesturePinchBegin,
+    pub gesture_pinch_update: TabInputGesturePinchUpdate,
+    pub gesture_pinch_end: TabInputGesturePinchEnd,
+
+    pub gesture_hold_begin: TabInputGestureHoldBegin,
+    pub gesture_hold_end: TabInputGestureHoldEnd,
 }
 
 #[repr(C)]
@@ -350,12 +417,10 @@ pub struct TabInputEvent {
 	pub data: TabInputEventData,
 }
 
-
-#[allow(dead_code)]
 pub(super) fn convert_input_event(payload: &InputEventPayload) -> TabInputEvent {
 	let kind: TabInputEventKind;
 	let mut data: TabInputEventData = unsafe { std::mem::zeroed() };
-
+	
 	match payload {
 		InputEventPayload::PointerMotion {
 			device,
@@ -368,18 +433,19 @@ pub(super) fn convert_input_event(payload: &InputEventPayload) -> TabInputEvent 
 			unaccel_dy,
 		} => {
 			kind = TabInputEventKind::TabInputPointerMotion;
+
 			unsafe {
-                data.pointer_motion = TabInputPointerMotion {
-                    device: *device,
-                    time_usec: *time_usec,
-                    x: *x,
-                    y: *y,
-                    dx: *dx,
-                    dy: *dy,
+				data.pointer_motion = TabInputPointerMotion {
+					device: *device,
+					time_usec: *time_usec,
+					x: *x,
+					y: *y,
+					dx: *dx,
+					dy: *dy,
 					unaccel_dx: *unaccel_dx,
 					unaccel_dy: *unaccel_dy,
-                };
-            }
+				};
+			}
 		}
 		InputEventPayload::PointerMotionAbsolute {
 			device,
@@ -391,15 +457,15 @@ pub(super) fn convert_input_event(payload: &InputEventPayload) -> TabInputEvent 
 		} => {
 			kind = TabInputEventKind::TabInputPointerMotionAbsolute;
 			unsafe {
-                data.pointer_motion_absolute = TabInputPointerMotionAbsolute {
-                    device: *device,
-                    time_usec: *time_usec,
-                    x: *x,
-                    y: *y,
-                    x_transformed: *x_transformed,
-                    y_transformed: *y_transformed,
-                };
-            }
+				data.pointer_motion_absolute = TabInputPointerMotionAbsolute {
+					device: *device,
+					time_usec: *time_usec,
+					x: *x,
+					y: *y,
+					x_transformed: *x_transformed,
+					y_transformed: *y_transformed,
+				};
+			}
 		}
 		InputEventPayload::PointerButton {
 			device,
@@ -413,13 +479,13 @@ pub(super) fn convert_input_event(payload: &InputEventPayload) -> TabInputEvent 
 			};
 			kind = TabInputEventKind::TabInputPointerButton;
 			unsafe {
-                data.pointer_button = TabInputPointerButton {
-                    device: *device,
-                    time_usec: *time_usec,
-                    button: *button,
-                    state: btn_state,
-                };
-            }
+				data.pointer_button = TabInputPointerButton {
+					device: *device,
+					time_usec: *time_usec,
+					button: *button,
+					state: btn_state,
+				};
+			}
 		}
 		InputEventPayload::PointerAxis {
 			device,
@@ -441,53 +507,15 @@ pub(super) fn convert_input_event(payload: &InputEventPayload) -> TabInputEvent 
 			};
 			kind = TabInputEventKind::TabInputPointerAxis;
 			unsafe {
-                data.pointer_axis = TabInputPointerAxis {
-                    device: *device,
-                    time_usec: *time_usec,
-                    orientation: axis_orientation,
-                    delta: *delta,
-                    delta_discrete: delta_discrete.unwrap_or(-1),
-                    source: axis_source,
-                };
-            }
-		}
-		InputEventPayload::PointerAxisStop {
-			device,
-			time_usec,
-			orientation,
-		} => {
-			let axis_orientation = match orientation {
-				AxisOrientation::Vertical => TabAxisOrientation::TabAxisVertical,
-				AxisOrientation::Horizontal => TabAxisOrientation::TabAxisHorizontal,
-			};
-			kind = TabInputEventKind::TabInputPointerAxisStop;
-			unsafe {
-                data.pointer_axis_stop = TabInputPointerAxisStop {
-                    device: *device,
-                    time_usec: *time_usec,
-                    orientation: axis_orientation,
-                };
-            }
-		}
-		InputEventPayload::PointerAxisDiscrete {
-			device,
-			time_usec,
-			orientation,
-			delta_discrete,
-		} => {
-			let axis_orientation = match orientation {
-				AxisOrientation::Vertical => TabAxisOrientation::TabAxisVertical,
-				AxisOrientation::Horizontal => TabAxisOrientation::TabAxisHorizontal,
-			};
-			kind = TabInputEventKind::TabInputPointerAxisDiscrete;
-			unsafe {
-                data.pointer_axis_discrete = TabInputPointerAxisDiscrete {
-                    device: *device,
-                    time_usec: *time_usec,
-                    orientation: axis_orientation,
-                    delta_discrete: *delta_discrete,
-                };
-            }
+				data.pointer_axis = TabInputPointerAxis {
+					device: *device,
+					time_usec: *time_usec,
+					orientation: axis_orientation,
+					delta: *delta,
+					delta_discrete: delta_discrete.unwrap_or(-1),
+					source: axis_source,
+				};
+			}
 		}
 		InputEventPayload::Key {
 			device,
@@ -501,75 +529,406 @@ pub(super) fn convert_input_event(payload: &InputEventPayload) -> TabInputEvent 
 			};
 			kind = TabInputEventKind::TabInputKey;
 			unsafe {
-                data.key = TabInputKey {
-                    device: *device,
-                    time_usec: *time_usec,
-                    key: *key,
-                    state: key_state,
-                };
-            }
+				data.key = TabInputKey {
+					device: *device,
+					time_usec: *time_usec,
+					key: *key,
+					state: key_state,
+				};
+			}
 		}
-		InputEventPayload::TouchDown { device, time_usec, contact } => {
+		InputEventPayload::TouchDown {
+			device,
+			time_usec,
+			contact,
+		} => {
 			kind = TabInputEventKind::TabInputTouchDown;
 			unsafe {
-                data.touch_down = TabInputTouchDown {
-                    device: *device,
-                    time_usec: *time_usec,
-                    contact: TabTouchContact {
-                        id: contact.id,
-                        x: contact.x,
-                        y: contact.y,
-                        x_transformed: contact.x_transformed,
-                        y_transformed: contact.y_transformed,
-                    },
-                };
-            }
+				data.touch_down = TabInputTouchDown {
+					device: *device,
+					time_usec: *time_usec,
+					contact: TabTouchContact {
+						id: contact.id,
+						x: contact.x,
+						y: contact.y,
+						x_transformed: contact.x_transformed,
+						y_transformed: contact.y_transformed,
+					},
+				};
+			}
 		}
-		InputEventPayload::TouchUp { device, time_usec, contact_id } => {
+		InputEventPayload::TouchUp {
+			device,
+			time_usec,
+			contact_id,
+		} => {
 			kind = TabInputEventKind::TabInputTouchUp;
 			unsafe {
-                data.touch_up = TabInputTouchUp {
-                    device: *device,
-                    time_usec: *time_usec,
-                    contact_id: *contact_id,
-                };
-            }
+				data.touch_up = TabInputTouchUp {
+					device: *device,
+					time_usec: *time_usec,
+					contact_id: *contact_id,
+				};
+			}
 		}
-		InputEventPayload::TouchMotion { device, time_usec, contact } => {
+		InputEventPayload::TouchMotion {
+			device,
+			time_usec,
+			contact,
+		} => {
 			kind = TabInputEventKind::TabInputTouchMotion;
 			unsafe {
-                data.touch_motion = TabInputTouchMotion {
-                    device: *device,
-                    time_usec: *time_usec,
-                    contact: TabTouchContact {
-                        id: contact.id,
-                        x: contact.x,
-                        y: contact.y,
-                        x_transformed: contact.x_transformed,
-                        y_transformed: contact.y_transformed,
-                    },
-                };
-            }
+				data.touch_motion = TabInputTouchMotion {
+					device: *device,
+					time_usec: *time_usec,
+					contact: TabTouchContact {
+						id: contact.id,
+						x: contact.x,
+						y: contact.y,
+						x_transformed: contact.x_transformed,
+						y_transformed: contact.y_transformed,
+					},
+				};
+			}
 		}
 		InputEventPayload::TouchFrame { time_usec } => {
 			kind = TabInputEventKind::TabInputTouchFrame;
 			unsafe {
-                data.touch_frame = TabInputTouchFrame {
-                    time_usec: *time_usec,
-                };
-            }
+				data.touch_frame = TabInputTouchFrame {
+					time_usec: *time_usec,
+				};
+			}
 		}
 		InputEventPayload::TouchCancel { time_usec } => {
 			kind = TabInputEventKind::TabInputTouchCancel;
 			unsafe {
-                data.touch_cancel = TabInputTouchCancel {
+				data.touch_cancel = TabInputTouchCancel {
+					time_usec: *time_usec,
+				};
+			}
+		}
+		InputEventPayload::TableToolProximity {
+			device,
+			time_usec,
+			in_proximity,
+			tool,
+		} => {
+			kind = TabInputEventKind::TabInputTabletToolProximity;
+			unsafe {
+				data.tablet_tool_proximity = TabInputTabletToolProximity {
+					device: *device,
+					time_usec: *time_usec,
+					in_proximity: *in_proximity,
+					tool: TabTabletTool {
+						serial: tool.serial,
+						tool_type: tool.tool_type as u8,
+					},
+				};
+			}
+		}
+		InputEventPayload::TabletToolAxis {
+			device,
+			time_usec,
+			tool,
+			axes,
+		} => {
+			kind = TabInputEventKind::TabInputTabletToolAxis;
+			unsafe {
+				data.tablet_tool_axis = TabInputTabletToolAxis {
+					device: *device,
+					time_usec: *time_usec,
+					tool: TabTabletTool {
+						serial: tool.serial,
+						tool_type: tool.tool_type as u8,
+					},
+					axes: TabTabletToolAxes {
+						x: axes.x,
+						y: axes.y,
+						pressure: axes.pressure.unwrap_or_default(),
+						distance: axes.distance.unwrap_or_default(),
+						tilt_x: axes.tilt_x.unwrap_or_default(),
+						tilt_y: axes.tilt_y.unwrap_or_default(),
+						rotation: axes.rotation.unwrap_or_default(),
+						slider: axes.slider.unwrap_or_default(),
+						wheel_delta: axes.wheel_delta.unwrap_or_default(),
+					},
+				};
+			}
+		}
+		InputEventPayload::TabletToolTip {
+			device,
+			time_usec,
+			tool,
+			state,
+		} => {
+			let tip_state = match state {
+				TipState::Down => TabTipState::TabTipDown,
+				TipState::Up => TabTipState::TabTipUp,
+			};
+			kind = TabInputEventKind::TabInputTabletToolTip;
+			unsafe {
+				data.tablet_tool_tip = TabInputTabletToolTip {
+					device: *device,
+					time_usec: *time_usec,
+					tool: TabTabletTool {
+						serial: tool.serial,
+						tool_type: tool.tool_type as u8,
+					},
+					state: tip_state,
+				};
+			}
+		}
+		InputEventPayload::TabletToolButton {
+			device,
+			time_usec,
+			tool,
+			button,
+			state,
+		} => {
+			let btn_state = match state {
+				ButtonState::Pressed => TabButtonState::TabButtonPressed,
+				ButtonState::Released => TabButtonState::TabButtonReleased,
+			};
+			kind = TabInputEventKind::TabInputTabletToolButton;
+			unsafe {
+				data.tablet_tool_button = TabInputTabletToolButton {
+					device: *device,
+					time_usec: *time_usec,
+					tool: TabTabletTool {
+						serial: tool.serial,
+						tool_type: tool.tool_type as u8,
+					},
+					button: *button,
+					state: btn_state,
+				};
+			}
+		}
+		InputEventPayload::TablePadButton {
+			device,
+			time_usec,
+			button,
+			state,
+		} => {
+			let btn_state = match state {
+				ButtonState::Pressed => TabButtonState::TabButtonPressed,
+				ButtonState::Released => TabButtonState::TabButtonReleased,
+			};
+			kind = TabInputEventKind::TabInputTabletPadButton;
+			unsafe {
+				data.tablet_pad_button = TabInputTabletPadButton {
+					device: *device,
+					time_usec: *time_usec,
+					button: *button,
+					state: btn_state,
+				};
+			}
+		}
+		InputEventPayload::TablePadRing {
+			device,
+			time_usec,
+			ring,
+			position,
+			source,
+		} => {
+			kind = TabInputEventKind::TabInputTabletPadRing;
+			unsafe {
+				data.tablet_pad_ring = TabInputTabletPadRing {
+					device: *device,
+					time_usec: *time_usec,
+					ring: *ring,
+					position: *position,
+					source: match source {
+						AxisSource::Wheel => TabAxisSource::TabAxisSourceWheel,
+						AxisSource::Finger => TabAxisSource::TabAxisSourceFinger,
+						AxisSource::Continuous => TabAxisSource::TabAxisSourceContinuous,
+						AxisSource::WheelTilt => TabAxisSource::TabAxisSourceWheelTilt,
+					},
+				};
+			}
+		}
+		InputEventPayload::TablePadStrip {
+			device,
+			time_usec,
+			strip,
+			position,
+			source,
+		} => {
+			kind = TabInputEventKind::TabInputTabletPadStrip;
+			unsafe {
+				data.tablet_pad_strip = TabInputTabletPadStrip {
+					device: *device,
+					time_usec: *time_usec,
+					strip: *strip,
+					position: *position,
+					source: match source {
+						AxisSource::Wheel => TabAxisSource::TabAxisSourceWheel,
+						AxisSource::Finger => TabAxisSource::TabAxisSourceFinger,
+						AxisSource::Continuous => TabAxisSource::TabAxisSourceContinuous,
+						AxisSource::WheelTilt => TabAxisSource::TabAxisSourceWheelTilt,
+					},
+				};
+			}
+		}
+		InputEventPayload::SwitchToggle {
+			device,
+			time_usec,
+			switch,
+			state,
+		} => {
+			let switch_type = match switch {
+				SwitchType::Lid => TabSwitchType::TabSwitchLid,
+				SwitchType::TabletMode => TabSwitchType::TabSwitchTabletMode,
+			};
+			let switch_state = match state {
+				SwitchState::On => TabSwitchState::TabSwitchOn,
+				SwitchState::Off => TabSwitchState::TabSwitchOff,
+			};
+			kind = TabInputEventKind::TabInputSwitchToggle;
+			unsafe {
+				data.switch_toggle = TabInputSwitchToggle {
+					device: *device,
+					time_usec: *time_usec,
+					switch_type,
+					state: switch_state,
+				};
+			}
+		}
+		        // ======================
+        // Gestures
+        // ======================
+
+        InputEventPayload::GestureSwipeBegin {
+            device,
+            time_usec,
+            fingers,
+        } => {
+            kind = TabInputEventKind::TabInputGestureSwipeBegin;
+            unsafe {
+                data.gesture_swipe_begin = TabInputGestureSwipeBegin {
+                    device: *device,
                     time_usec: *time_usec,
+                    fingers: *fingers,
                 };
             }
-		}
-		_ => {
-			unimplemented!("Input event conversion not implemented for this variant");
-		}
+        }
+
+        InputEventPayload::GestureSwipeUpdate {
+            device,
+            time_usec,
+            fingers,
+            dx,
+            dy,
+        } => {
+            kind = TabInputEventKind::TabInputGestureSwipeUpdate;
+            unsafe {
+                data.gesture_swipe_update = TabInputGestureSwipeUpdate {
+                    device: *device,
+                    time_usec: *time_usec,
+                    fingers: *fingers,
+                    dx: *dx,
+                    dy: *dy,
+                };
+            }
+        }
+
+        InputEventPayload::GestureSwipeEnd {
+            device,
+            time_usec,
+            cancelled,
+        } => {
+            kind = TabInputEventKind::TabInputGestureSwipeEnd;
+            unsafe {
+                data.gesture_swipe_end = TabInputGestureSwipeEnd {
+                    device: *device,
+                    time_usec: *time_usec,
+                    cancelled: *cancelled,
+                };
+            }
+        }
+
+        InputEventPayload::GesturePinchBegin {
+            device,
+            time_usec,
+            fingers,
+        } => {
+            kind = TabInputEventKind::TabInputGesturePinchBegin;
+            unsafe {
+                data.gesture_pinch_begin = TabInputGesturePinchBegin {
+                    device: *device,
+                    time_usec: *time_usec,
+                    fingers: *fingers,
+                };
+            }
+        }
+
+        InputEventPayload::GesturePinchUpdate {
+            device,
+            time_usec,
+            fingers,
+            dx,
+            dy,
+            scale,
+            rotation,
+        } => {
+            kind = TabInputEventKind::TabInputGesturePinchUpdate;
+            unsafe {
+                data.gesture_pinch_update = TabInputGesturePinchUpdate {
+                    device: *device,
+                    time_usec: *time_usec,
+                    fingers: *fingers,
+                    dx: *dx,
+                    dy: *dy,
+                    scale: *scale,
+                    rotation: *rotation,
+                };
+            }
+        }
+
+        InputEventPayload::GesturePinchEnd {
+            device,
+            time_usec,
+            cancelled,
+        } => {
+            kind = TabInputEventKind::TabInputGesturePinchEnd;
+            unsafe {
+                data.gesture_pinch_end = TabInputGesturePinchEnd {
+                    device: *device,
+                    time_usec: *time_usec,
+                    cancelled: *cancelled,
+                };
+            }
+        }
+
+        InputEventPayload::GestureHoldBegin {
+            device,
+            time_usec,
+            fingers,
+        } => {
+            kind = TabInputEventKind::TabInputGestureHoldBegin;
+            unsafe {
+                data.gesture_hold_begin = TabInputGestureHoldBegin {
+                    device: *device,
+                    time_usec: *time_usec,
+                    fingers: *fingers,
+                };
+            }
+        }
+
+        InputEventPayload::GestureHoldEnd {
+            device,
+            time_usec,
+            cancelled,
+        } => {
+            kind = TabInputEventKind::TabInputGestureHoldEnd;
+            unsafe {
+                data.gesture_hold_end = TabInputGestureHoldEnd {
+                    device: *device,
+                    time_usec: *time_usec,
+                    cancelled: *cancelled,
+                };
+            }
+        }
+
 	};
 
 	TabInputEvent { kind, data }

@@ -8,6 +8,7 @@ use std::path::Path;
 
 use input::AsRaw;
 use input::event::device::DeviceEvent;
+use input::event::gesture::{GestureEndEvent, GestureEvent, GestureEventCoordinates, GestureEventTrait, GestureHoldEvent, GesturePinchEvent, GesturePinchEventTrait, GestureSwipeEvent};
 use input::event::keyboard::{KeyState as LibinputKeyState, KeyboardEvent, KeyboardEventTrait};
 #[allow(deprecated)]
 use input::event::pointer::{
@@ -26,7 +27,7 @@ use input::event::touch::{
 use input::event::{Event, EventTrait};
 use input::{Device, Libinput, LibinputInterface};
 use libc::{O_RDONLY, O_RDWR, O_WRONLY, SIGUSR1};
-use linux_raw_sys::ioctl::VT_SETMODE;
+use linux_raw_sys::ioctl::{KDSETMODE, KDSKBMODE, VT_SETMODE};
 use tab_protocol::{
 	AxisOrientation, AxisSource, ButtonState, InputEventPayload, KeyState, SwitchState, SwitchType,
 	TouchContact,
@@ -45,21 +46,20 @@ pub struct InputManager {
 
 #[repr(C)]
 struct vt_mode {
-    mode: i8,
-    waitv: i8,
-    relsig: i16,
-    acqsig: i16,
-    frsig: i16,
+	mode: i8,
+	waitv: i8,
+	relsig: i16,
+	acqsig: i16,
+	frsig: i16,
 }
 
 impl InputManager {
-	
 	pub fn new() -> Result<Self, ShiftError> {
 		let mut ctx = Libinput::new_with_udev(ShiftInputInterface::default());
 		ctx
 			.udev_assign_seat("seat0")
 			.map_err(|_| ShiftError::Libinput("failed to assign libinput seat".into()))?;
-		
+
 		Self::disable_vt_switching();
 		Ok(Self {
 			ctx,
@@ -74,17 +74,25 @@ impl InputManager {
 	// so we disable VT switching to prevent users from switching away from Shift
 	// Switching sessions should be done through Shift
 	fn disable_vt_switching() {
-
-		if let Ok(console_fd) = OpenOptions::new().read(true).write(true).open("/dev/console") {
+		if let Ok(console_fd) = OpenOptions::new()
+			.read(true)
+			.write(true)
+			.open("/dev/console")
+		{
 			unsafe {
 				// Set VT mode to userspace mode so it sends a signal everytime a VT switch is attempted
-				if libc::ioctl(console_fd.as_raw_fd(), VT_SETMODE.into(), &vt_mode {
-					mode: 1,
-					waitv: 0,
-					relsig: SIGUSR1 as i16,
-					acqsig: SIGUSR1 as i16,
-					frsig: 0,
-				}) == 0 {
+				if libc::ioctl(
+					console_fd.as_raw_fd(),
+					VT_SETMODE.into(),
+					&vt_mode {
+						mode: 1,
+						waitv: 0,
+						relsig: SIGUSR1 as i16,
+						acqsig: SIGUSR1 as i16,
+						frsig: 0,
+					},
+				) == 0
+				{
 					// but when we actually receive a signal, we completely ignore it
 					// effectively locking the user into the current VT
 					libc::sigaction(
@@ -105,7 +113,7 @@ impl InputManager {
 			tracing::warn!("Failed to open /dev/console to set VT mode");
 		}
 	}
-	pub fn fd(&self) -> RawFd {
+	pub fn fd(&self) -> RawFd { 
 		self.ctx.as_raw_fd()
 	}
 
@@ -158,9 +166,94 @@ impl InputManager {
 					handler(payload);
 				}
 			}
+			Event::Gesture(event) => {
+				if let Some(payload) = self.convert_gesture_event(event) {
+					handler(payload);
+				}
+			}
+			
 			other => {
 				trace!(?other, "Unhandled libinput event");
 			}
+		}
+	}
+	fn convert_gesture_event(
+		&mut self,
+		event: GestureEvent,
+	) -> Option<InputEventPayload> {
+		use GestureEvent as G;
+		use GestureSwipeEvent as S;
+		use GesturePinchEvent as P;
+		use GestureHoldEvent as H;
+
+		match event {
+			// ======================
+			// SWIPE
+			// ======================
+			G::Swipe(S::Begin(e)) => Some(InputEventPayload::GestureSwipeBegin {
+				device: self.device_id_for(&e.device()),
+				time_usec: e.time_usec(),
+				fingers: e.finger_count() as _,
+			}),
+
+			G::Swipe(S::Update(e)) => Some(InputEventPayload::GestureSwipeUpdate {
+				device: self.device_id_for(&e.device()),
+				time_usec: e.time_usec(),
+				dx: e.dx(),
+				dy: e.dy(),
+				fingers: e.finger_count() as _,
+			}),
+
+			G::Swipe(S::End(e)) => Some(InputEventPayload::GestureSwipeEnd {
+				device: self.device_id_for(&e.device()),
+				time_usec: e.time_usec(),
+				cancelled: e.cancelled(),
+			}),
+
+			// ======================
+			// PINCH
+			// ======================
+			G::Pinch(P::Begin(e)) => Some(InputEventPayload::GesturePinchBegin {
+				device: self.device_id_for(&e.device()),
+				time_usec: e.time_usec(),
+				fingers: e.finger_count() as _,
+			}),
+
+			G::Pinch(P::Update(e)) => Some(InputEventPayload::GesturePinchUpdate {
+				device: self.device_id_for(&e.device()),
+				time_usec: e.time_usec(),
+				dx: e.dx(),
+				dy: e.dy(),
+				scale: e.scale(),
+				rotation: e.angle_delta(),
+				fingers: e.finger_count() as _,
+			}),
+
+			G::Pinch(P::End(e)) => Some(InputEventPayload::GesturePinchEnd {
+				device: self.device_id_for(&e.device()),
+				time_usec: e.time_usec(),
+				cancelled: e.cancelled(),
+			}),
+
+			// ======================
+			// HOLD
+			// ======================
+			G::Hold(H::Begin(e)) => Some(InputEventPayload::GestureHoldBegin {
+				device: self.device_id_for(&e.device()),
+				time_usec: e.time_usec(),
+				fingers: e.finger_count() as _,
+			}),
+
+			G::Hold(H::End(e)) => Some(InputEventPayload::GestureHoldEnd {
+				device: self.device_id_for(&e.device()),
+				time_usec: e.time_usec(),
+				cancelled: e.cancelled(),
+			}),
+
+			// ======================
+			// Ignore unsupported
+			// ======================
+			_ => None,
 		}
 	}
 
@@ -168,9 +261,10 @@ impl InputManager {
 		match event {
 			DeviceEvent::Added(ev) => {
 				let device_id = self.device_id_for(&ev.device());
-				ev.device().config_tap_set_drag_lock_enabled(true).ok();
 				ev.device().config_tap_set_enabled(true).ok();
-				
+				ev.device()
+					.config_scroll_set_method(input::ScrollMethod::TwoFinger)
+					.ok();
 				trace!(device_id, "Device added");
 			}
 			DeviceEvent::Removed(ev) => {
@@ -210,6 +304,7 @@ impl InputManager {
 			PointerEvent::ScrollWheel(ev) => self.pointer_scroll_wheel(ev),
 			PointerEvent::ScrollFinger(ev) => self.pointer_scroll_finger(ev),
 			PointerEvent::ScrollContinuous(ev) => self.pointer_scroll_continuous(ev),
+			
 			_ => Vec::new(),
 		}
 	}
@@ -221,7 +316,7 @@ impl InputManager {
 		let unaccel_dx = event.dx_unaccelerated();
 		let unaccel_dy = event.dy_unaccelerated();
 		let (x, y) = self.cursor.update_relative(dx, dy);
-		
+
 		vec![InputEventPayload::PointerMotion {
 			device,
 			time_usec: event.time_usec(),
@@ -276,6 +371,7 @@ impl InputManager {
 	#[allow(deprecated)]
 	fn pointer_axis(&mut self, event: PointerAxisEvent) -> Vec<InputEventPayload> {
 		let device = self.device_id_for(&event.device());
+
 		self.collect_axis_payloads(
 			device,
 			event.time_usec(),
@@ -352,32 +448,14 @@ impl InputManager {
 				continue;
 			}
 			let delta = value(axis);
-			if delta.abs() < f64::EPSILON {
-				events.push(InputEventPayload::PointerAxisStop {
-					device,
-					time_usec,
-					orientation: axis_orientation_from_pointer(axis),
-				});
-			} else {
-				events.push(InputEventPayload::PointerAxis {
-					device,
-					time_usec,
-					orientation: axis_orientation_from_pointer(axis),
-					delta,
-					delta_discrete: discrete(axis),
-					source: source.clone(),
-				});
-			}
-			if let Some(steps) = discrete(axis) {
-				if steps != 0 {
-					events.push(InputEventPayload::PointerAxisDiscrete {
-						device,
-						time_usec,
-						orientation: axis_orientation_from_pointer(axis),
-						delta_discrete: steps,
-					});
-				}
-			}
+			events.push(InputEventPayload::PointerAxis {
+				device,
+				time_usec,
+				orientation: axis_orientation_from_pointer(axis),
+				delta,
+				delta_discrete: discrete(axis),
+				source: source.clone(),
+			});
 		}
 		events
 	}

@@ -1,13 +1,13 @@
 use std::{
+	collections::VecDeque,
 	ffi::{CStr, CString},
 	os::fd::AsRawFd,
 	os::raw::c_char,
-	collections::VecDeque,
 };
 
 use tab_protocol::{
-	InputEventPayload, MonitorInfo, SessionInfo, SessionLifecycle, SessionRole,
-	DEFAULT_SOCKET_PATH, ButtonState, AxisOrientation, AxisSource, KeyState,
+	AxisOrientation, AxisSource, ButtonState, DEFAULT_SOCKET_PATH, InputEventPayload, KeyState,
+	MonitorInfo, SessionInfo, SessionLifecycle, SessionRole,
 };
 
 use crate::{TabClient, TabEvent as RustTabEvent};

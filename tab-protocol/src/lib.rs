@@ -269,17 +269,6 @@ pub enum InputEventPayload {
 		delta_discrete: Option<i32>,
 		source: AxisSource,
 	},
-	PointerAxisStop {
-		device: u32,
-		time_usec: u64,
-		orientation: AxisOrientation,
-	},
-	PointerAxisDiscrete {
-		device: u32,
-		time_usec: u64,
-		orientation: AxisOrientation,
-		delta_discrete: i32,
-	},
 	Key {
 		device: u32,
 		time_usec: u64,
@@ -358,6 +347,60 @@ pub enum InputEventPayload {
 		switch: SwitchType,
 		state: SwitchState,
 	},
+
+
+    // ======================
+    // Gestures (NEW)
+    // ======================
+    GestureSwipeBegin {
+        device: u32,
+        time_usec: u64,
+        fingers: u32,
+    },
+    GestureSwipeUpdate {
+        device: u32,
+        time_usec: u64,
+        fingers: u32,
+        dx: f64,
+        dy: f64,
+    },
+    GestureSwipeEnd {
+        device: u32,
+        time_usec: u64,
+        cancelled: bool,
+    },
+
+    GesturePinchBegin {
+        device: u32,
+        time_usec: u64,
+        fingers: u32,
+    },
+    GesturePinchUpdate {
+        device: u32,
+        time_usec: u64,
+        fingers: u32,
+        dx: f64,
+        dy: f64,
+        scale: f64,
+        rotation: f64,
+    },
+    GesturePinchEnd {
+        device: u32,
+        time_usec: u64,
+        cancelled: bool,
+    },
+
+    GestureHoldBegin {
+        device: u32,
+        time_usec: u64,
+        fingers: u32,
+    },
+    GestureHoldEnd {
+        device: u32,
+        time_usec: u64,
+        cancelled: bool,
+    },
+
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -394,7 +437,7 @@ pub struct TabletTool {
 	pub capability: TabletToolCapability,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TabletToolType {
 	Pen,
 	Eraser,

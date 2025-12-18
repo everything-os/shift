@@ -24,7 +24,7 @@ pub struct TabFrameTarget {
 	pub texture: u32,
 	pub width: i32,
 	pub height: i32,
-	pub dmabuf: CDmabuf
+	pub dmabuf: CDmabuf,
 }
 
 // ============================================================================
@@ -38,7 +38,7 @@ pub unsafe extern "C" fn tab_client_acquire_frame(
 	monitor_id: *const c_char,
 	target: *mut TabFrameTarget,
 ) -> event::TabAcquireResult {
-	let client = match unsafe{ handle.as_mut() } {
+	let client = match unsafe { handle.as_mut() } {
 		Some(h) => &mut h.inner,
 		None => return event::TabAcquireResult::TabAcquireError,
 	};
@@ -60,7 +60,12 @@ pub unsafe extern "C" fn tab_client_acquire_frame(
 				let (w, h) = frame.size();
 				(*target).width = w;
 				(*target).height = h;
-				(*target).dmabuf = CDmabuf { fd: frame.dmabuf().fd.as_raw_fd(), stride: frame.dmabuf.stride, offset: frame.dmabuf.offset, fourcc: frame.dmabuf.fourcc };
+				(*target).dmabuf = CDmabuf {
+					fd: frame.dmabuf().fd.as_raw_fd(),
+					stride: frame.dmabuf.stride,
+					offset: frame.dmabuf.offset,
+					fourcc: frame.dmabuf.fourcc,
+				};
 			}
 			event::TabAcquireResult::TabAcquireOk
 		}
@@ -78,7 +83,7 @@ pub unsafe extern "C" fn tab_client_swap_buffers(
 	handle: *mut TabClientHandle,
 	monitor_id: *const c_char,
 ) -> bool {
-	let client = match unsafe{ handle.as_mut() } {
+	let client = match unsafe { handle.as_mut() } {
 		Some(h) => &mut h.inner,
 		None => return false,
 	};
@@ -96,10 +101,8 @@ pub unsafe extern "C" fn tab_client_swap_buffers(
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn tab_client_drm_fd(
-	handle: *mut TabClientHandle,
-) -> RawFd {
-	let client = match unsafe{ handle.as_mut() } {
+pub unsafe extern "C" fn tab_client_drm_fd(handle: *mut TabClientHandle) -> RawFd {
+	let client = match unsafe { handle.as_mut() } {
 		Some(h) => &mut h.inner,
 		None => return -1,
 	};

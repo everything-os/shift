@@ -28,8 +28,6 @@ typedef enum {
     TAB_INPUT_KIND_POINTER_MOTION_ABSOLUTE = 1,
     TAB_INPUT_KIND_POINTER_BUTTON = 2,
     TAB_INPUT_KIND_POINTER_AXIS = 3,
-    TAB_INPUT_KIND_POINTER_AXIS_STOP = 4,
-    TAB_INPUT_KIND_POINTER_AXIS_DISCRETE = 5,
     TAB_INPUT_KIND_KEY = 6,
     TAB_INPUT_KIND_TOUCH_DOWN = 7,
     TAB_INPUT_KIND_TOUCH_UP = 8,
@@ -44,6 +42,16 @@ typedef enum {
     TAB_INPUT_KIND_TABLET_PAD_RING = 17,
     TAB_INPUT_KIND_TABLET_PAD_STRIP = 18,
     TAB_INPUT_KIND_SWITCH_TOGGLE = 19,
+    TAB_INPUT_KIND_GESTURE_SWIPE_BEGIN,
+    TAB_INPUT_KIND_GESTURE_SWIPE_UPDATE,
+    TAB_INPUT_KIND_GESTURE_SWIPE_END,
+
+    TAB_INPUT_KIND_GESTURE_PINCH_BEGIN,
+    TAB_INPUT_KIND_GESTURE_PINCH_UPDATE,
+    TAB_INPUT_KIND_GESTURE_PINCH_END,
+
+    TAB_INPUT_KIND_GESTURE_HOLD_BEGIN,
+    TAB_INPUT_KIND_GESTURE_HOLD_END,
 } TabInputEventKind;
 
 typedef enum {
@@ -119,18 +127,7 @@ typedef struct {
     TabAxisSource source;
 } TabInputPointerAxis;
 
-typedef struct {
-    uint32_t device;
-    uint64_t time_usec;
-    TabAxisOrientation orientation;
-} TabInputPointerAxisStop;
 
-typedef struct {
-    uint32_t device;
-    uint64_t time_usec;
-    TabAxisOrientation orientation;
-    int32_t delta_discrete;
-} TabInputPointerAxisDiscrete;
 
 typedef struct {
     uint32_t device;
@@ -238,12 +235,65 @@ typedef struct {
     TabAxisSource source;
 } TabInputTabletPadStrip;
 
+
 typedef struct {
     uint32_t device;
     uint64_t time_usec;
     TabSwitchType switch_type;
     TabSwitchState state;
 } TabInputSwitchToggle;
+
+// Gestures
+
+typedef struct {
+    uint32_t device;
+    uint64_t time_usec;
+    uint32_t fingers;
+} TabInputGestureSwipeBegin;
+
+typedef struct {
+    uint32_t device;
+    uint64_t time_usec;
+    uint32_t fingers;
+    double dx, dy;
+} TabInputGestureSwipeUpdate;
+
+typedef struct {
+    uint32_t device;
+    uint64_t time_usec;
+    bool cancelled;
+} TabInputGestureSwipeEnd;
+typedef struct {
+    uint32_t device;
+    uint64_t time_usec;
+    uint32_t fingers;
+} TabInputGesturePinchBegin;
+
+typedef struct {
+    uint32_t device;
+    uint64_t time_usec;
+    uint32_t fingers;
+    double dx, dy;
+    double scale;
+    double rotation;
+} TabInputGesturePinchUpdate;
+
+typedef struct {
+    uint32_t device;
+    uint64_t time_usec;
+    bool cancelled;
+} TabInputGesturePinchEnd;
+typedef struct {
+    uint32_t device;
+    uint64_t time_usec;
+    uint32_t fingers;
+} TabInputGestureHoldBegin;
+
+typedef struct {
+    uint32_t device;
+    uint64_t time_usec;
+    bool cancelled;
+} TabInputGestureHoldEnd;
 
 /* ============================================================================
  * INPUT EVENT UNION
@@ -255,8 +305,6 @@ typedef union {
     TabInputPointerMotionAbsolute pointer_motion_absolute;
     TabInputPointerButton pointer_button;
     TabInputPointerAxis pointer_axis;
-    TabInputPointerAxisStop pointer_axis_stop;
-    TabInputPointerAxisDiscrete pointer_axis_discrete;
     TabInputKey key;
     TabInputTouchDown touch_down;
     TabInputTouchUp touch_up;
@@ -270,7 +318,18 @@ typedef union {
     TabInputTabletPadButton tablet_pad_button;
     TabInputTabletPadRing tablet_pad_ring;
     TabInputTabletPadStrip tablet_pad_strip;
+    
     TabInputSwitchToggle switch_toggle;
+    TabInputGestureSwipeBegin swipe_begin;
+    TabInputGestureSwipeUpdate swipe_update;
+    TabInputGestureSwipeEnd swipe_end;
+
+    TabInputGesturePinchBegin pinch_begin;
+    TabInputGesturePinchUpdate pinch_update;
+    TabInputGesturePinchEnd pinch_end;
+
+    TabInputGestureHoldBegin hold_begin;
+    TabInputGestureHoldEnd hold_end;
 } TabInputEventData;
 
 typedef struct {

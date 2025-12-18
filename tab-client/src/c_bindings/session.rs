@@ -20,7 +20,7 @@ pub struct TabSessionInfo {
 /// Get session info as JSON string. Caller must free with `tab_client_string_free()`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn tab_client_get_session(handle: *mut TabClientHandle) -> TabSessionInfo {
-	let client = match unsafe{ handle.as_mut() } {
+	let client = match unsafe { handle.as_mut() } {
 		Some(h) => &h.inner,
 		None => return std::mem::zeroed(),
 	};
@@ -79,7 +79,7 @@ pub unsafe extern "C" fn tab_client_free_session_info(info: *mut TabSessionInfo)
 /// Send session ready signal
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn tab_client_send_ready(handle: *mut TabClientHandle) -> bool {
-	let client = match unsafe{ handle.as_mut() } {
+	let client = match unsafe { handle.as_mut() } {
 		Some(h) => &mut h.inner,
 		None => return false,
 	};
