@@ -1,7 +1,5 @@
 use std::os::fd::RawFd;
 
-use crate::BorrowedDmabuf;
-
 use super::*;
 
 #[derive(Clone, Copy, Debug)]

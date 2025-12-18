@@ -54,25 +54,27 @@ pub unsafe extern "C" fn tab_client_get_monitor_info(
 	handle: *mut TabClientHandle,
 	monitor_id: *const c_char,
 ) -> TabMonitorInfo {
-	let client = match unsafe { handle.as_mut() } {
-		Some(h) => &h.inner,
-		None => return std::mem::zeroed(),
-	};
+	unsafe {
+		let client = match unsafe { handle.as_mut() } {
+			Some(h) => &h.inner,
+			None => return std::mem::zeroed(),
+		};
 
-	let id = match unsafe { CStr::from_ptr(monitor_id) }.to_str() {
-		Ok(s) => s,
-		Err(_) => return std::mem::zeroed(),
-	};
-	let monitor_info = match client.monitor_info(id) {
-		Some(info) => info,
-		None => return std::mem::zeroed(),
-	};
-	TabMonitorInfo {
-		id: CString::new(monitor_info.id).unwrap().into_raw(),
-		width: monitor_info.width,
-		height: monitor_info.height,
-		refresh_rate: monitor_info.refresh_rate,
-		name: CString::new(monitor_info.name).unwrap().into_raw(),
+		let id = match unsafe { CStr::from_ptr(monitor_id) }.to_str() {
+			Ok(s) => s,
+			Err(_) => return std::mem::zeroed(),
+		};
+		let monitor_info = match client.monitor_info(id) {
+			Some(info) => info,
+			None => return std::mem::zeroed(),
+		};
+		TabMonitorInfo {
+			id: CString::new(monitor_info.id).unwrap().into_raw(),
+			width: monitor_info.width,
+			height: monitor_info.height,
+			refresh_rate: monitor_info.refresh_rate,
+			name: CString::new(monitor_info.name).unwrap().into_raw(),
+		}
 	}
 }
 

@@ -20,44 +20,46 @@ pub struct TabSessionInfo {
 /// Get session info as JSON string. Caller must free with `tab_client_string_free()`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn tab_client_get_session(handle: *mut TabClientHandle) -> TabSessionInfo {
-	let client = match unsafe { handle.as_mut() } {
-		Some(h) => &h.inner,
-		None => return std::mem::zeroed(),
-	};
-
-	if let Some(session) = client.session() {
-		let id_cstr = match CString::new(session.id.clone()) {
-			Ok(s) => s,
-			Err(_) => return std::mem::zeroed(),
+	unsafe {
+		let client = match unsafe { handle.as_mut() } {
+			Some(h) => &h.inner,
+			None => return std::mem::zeroed(),
 		};
-		let display_name_cstr = match &session.display_name {
-			Some(name) => match CString::new(name.clone()) {
+
+		if let Some(session) = client.session() {
+			let id_cstr = match CString::new(session.id.clone()) {
 				Ok(s) => s,
 				Err(_) => return std::mem::zeroed(),
-			},
-			None => CString::new("").unwrap(), // Placeholder, will use NULL pointer
-		};
+			};
+			let display_name_cstr = match &session.display_name {
+				Some(name) => match CString::new(name.clone()) {
+					Ok(s) => s,
+					Err(_) => return std::mem::zeroed(),
+				},
+				None => CString::new("").unwrap(), // Placeholder, will use NULL pointer
+			};
 
-		TabSessionInfo {
-			id: id_cstr.into_raw(),
-			role: match session.role {
-				SessionRole::Admin => event::TabSessionRole::TabSessionRoleAdmin,
-				SessionRole::Session => event::TabSessionRole::TabSessionRoleSession,
-			},
-			display_name: if session.display_name.is_some() {
-				display_name_cstr.into_raw()
-			} else {
-				std::ptr::null()
-			},
-			state: match session.state {
-				SessionLifecycle::Pending => event::TabSessionLifecycle::TabSessionLifecyclePending,
-				SessionLifecycle::Loading => event::TabSessionLifecycle::TabSessionLifecycleLoading,
-				SessionLifecycle::Occupied => event::TabSessionLifecycle::TabSessionLifecycleOccupied,
-				SessionLifecycle::Consumed => event::TabSessionLifecycle::TabSessionLifecycleConsumed,
-			},
+			TabSessionInfo {
+				id: id_cstr.into_raw(),
+				role: match session.role {
+					SessionRole::Admin => event::TabSessionRole::TabSessionRoleAdmin,
+					SessionRole::Session => event::TabSessionRole::TabSessionRoleSession,
+				},
+				display_name: if session.display_name.is_some() {
+					display_name_cstr.into_raw()
+				} else {
+					std::ptr::null()
+				},
+				state: match session.state {
+					SessionLifecycle::Pending => event::TabSessionLifecycle::TabSessionLifecyclePending,
+					SessionLifecycle::Loading => event::TabSessionLifecycle::TabSessionLifecycleLoading,
+					SessionLifecycle::Occupied => event::TabSessionLifecycle::TabSessionLifecycleOccupied,
+					SessionLifecycle::Consumed => event::TabSessionLifecycle::TabSessionLifecycleConsumed,
+				},
+			}
+		} else {
+			std::mem::zeroed()
 		}
-	} else {
-		std::mem::zeroed()
 	}
 }
 

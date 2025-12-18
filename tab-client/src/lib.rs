@@ -465,7 +465,7 @@ impl TabClient {
 		Ok(())
 	}
 
-	pub fn acquire_frame(&mut self, monitor_id: &str) -> Result<FrameTarget, TabClientError> {
+	pub fn acquire_frame(&mut self, monitor_id: &str) -> Result<FrameTarget<'_>, TabClientError> {
 		let output = self
 			.outputs
 			.get_mut(monitor_id)

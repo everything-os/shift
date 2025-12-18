@@ -7,7 +7,7 @@ use std::{
 
 use tab_protocol::{
 	AxisOrientation, AxisSource, ButtonState, DEFAULT_SOCKET_PATH, InputEventPayload, KeyState,
-	MonitorInfo, SessionInfo, SessionLifecycle, SessionRole,
+	SessionLifecycle, SessionRole,
 };
 
 use crate::{TabClient, TabEvent as RustTabEvent};
