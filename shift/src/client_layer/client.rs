@@ -5,8 +5,8 @@ use std::{
 };
 
 use tab_protocol::{
-	AuthErrorPayload, AuthOkPayload, ErrorPayload, SessionCreatedPayload, SessionInfo, TabMessage,
-	TabMessageFrame, message_header,
+	AuthErrorPayload, AuthOkPayload, ErrorPayload, FrameDonePayload, SessionCreatedPayload,
+	SessionInfo, TabMessage, TabMessageFrame, message_header,
 };
 use tokio::{io::unix::AsyncFd, task::JoinHandle};
 
@@ -299,6 +299,20 @@ impl Client {
 				self.send_error(&code, error.as_deref()).await;
 				if shutdown {
 					self.schedule_client_shutdown().await;
+				}
+			}
+			S2CMsg::FrameDone { monitors } => {
+				for monitor_id in monitors {
+					let payload = FrameDonePayload {
+						monitor_id: monitor_id.to_string(),
+					};
+					let send_result = TabMessageFrame::json(message_header::FRAME_DONE, payload)
+						.send_frame_to_async_fd(&self.socket)
+						.await;
+					if let Err(e) = send_result {
+						tracing::warn!(%monitor_id, "failed to send frame_done: {e}");
+						break;
+					}
 				}
 			}
 		}

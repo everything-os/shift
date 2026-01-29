@@ -7,6 +7,7 @@ use crate::{
 		client2server::{C2SMsg, C2SRx, C2STx, C2SWeakTx},
 		server2client::{S2CMsg, S2CRx, S2CTx},
 	},
+	monitor::MonitorId,
 	sessions::{PendingSession, Session, SessionId},
 };
 
@@ -121,5 +122,14 @@ impl ClientView {
 
 	pub fn authenticated_session(&self) -> Option<SessionId> {
 		self.session_id
+	}
+
+	pub async fn notify_frame_done(&mut self, monitors: Vec<MonitorId>) -> bool {
+		self
+			.channels
+			.1
+			.send(S2CMsg::FrameDone { monitors })
+			.await
+			.is_ok()
 	}
 }

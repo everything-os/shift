@@ -224,7 +224,24 @@ impl ShiftServer {
 				// TODO: Shutdown server
 			}
 			RenderEvt::PageFlip { monitors } => {
-				todo!()
+				if monitors.is_empty() {
+					return;
+				}
+				let Some(active_session) = self.current_session else {
+					tracing::trace!("page flip ignored: no active session");
+					return;
+				};
+				let Some((_id, client)) = self
+					.connected_clients
+					.iter_mut()
+					.find(|(_, c)| c.client_view.authenticated_session() == Some(active_session))
+				else {
+					tracing::trace!(%active_session, "page flip ignored: no client bound to active session");
+					return;
+				};
+				if !client.client_view.notify_frame_done(monitors).await {
+					tracing::warn!(%active_session, "failed to forward frame_done to client");
+				}
 			}
 		}
 	}

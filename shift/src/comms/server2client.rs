@@ -4,6 +4,7 @@ use tab_protocol::SessionRole;
 
 use crate::{
 	auth::{self, Token},
+	monitor::MonitorId,
 	sessions::{self, PendingSession, Session, SessionId},
 };
 
@@ -16,6 +17,9 @@ pub enum S2CMsg {
 		code: Arc<str>,
 		error: Option<Arc<str>>,
 		shutdown: bool,
+	},
+	FrameDone {
+		monitors: Vec<MonitorId>,
 	},
 }
 
