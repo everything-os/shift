@@ -211,13 +211,14 @@ impl ShiftServer {
 			}
 			RenderEvt::MonitorOnline { monitor } => {
 				tracing::info!(?monitor, "renderer reports monitor online");
+				self.broadcast_monitor_added(&monitor).await;
 				self.monitors.insert(monitor.id, monitor);
-				// TODO: Send notification to the client
 			}
 			RenderEvt::MonitorOffline { monitor_id } => {
 				tracing::info!(%monitor_id, "renderer reports monitor offline");
-				self.monitors.remove(&monitor_id);
-				// TODO: Send notification to the client
+				if let Some(monitor) = self.monitors.remove(&monitor_id) {
+					self.broadcast_monitor_removed(&monitor).await;
+				}
 			}
 			RenderEvt::FatalError { reason } => {
 				tracing::error!(?reason, "renderer fatal error");
@@ -304,6 +305,31 @@ impl ShiftServer {
 			}
 			Err(e) => {
 				tracing::error!("failed to accept connection: {e}");
+			}
+		}
+	}
+
+	async fn broadcast_monitor_added(&mut self, monitor: &crate::monitor::Monitor) {
+		for (id, client) in self.connected_clients.iter_mut() {
+			if !client
+				.client_view
+				.notify_monitor_added(monitor.clone())
+				.await
+			{
+				tracing::warn!(%id, "failed to notify monitor added");
+			}
+		}
+	}
+
+	async fn broadcast_monitor_removed(&mut self, monitor: &crate::monitor::Monitor) {
+		let name: Arc<str> = monitor.name.clone().into();
+		for (id, client) in self.connected_clients.iter_mut() {
+			if !client
+				.client_view
+				.notify_monitor_removed(monitor.id, Arc::clone(&name))
+				.await
+			{
+				tracing::warn!(%id, "failed to notify monitor removed");
 			}
 		}
 	}

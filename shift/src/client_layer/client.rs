@@ -5,8 +5,9 @@ use std::{
 };
 
 use tab_protocol::{
-	AuthErrorPayload, AuthOkPayload, ErrorPayload, FrameDonePayload, SessionCreatedPayload,
-	SessionInfo, TabMessage, TabMessageFrame, message_header,
+	AuthErrorPayload, AuthOkPayload, ErrorPayload, FrameDonePayload, MonitorAddedPayload,
+	MonitorRemovedPayload, SessionCreatedPayload, SessionInfo, TabMessage, TabMessageFrame,
+	message_header,
 };
 use tokio::{io::unix::AsyncFd, task::JoinHandle};
 
@@ -18,7 +19,7 @@ use crate::{
 		server2client::S2CMsg,
 	},
 	define_id_type,
-	monitor::MonitorId,
+	monitor::{Monitor, MonitorId},
 	sessions::{Role, Session, SessionId},
 };
 pub type AsyncUnixStream = AsyncFd<UnixStream>;
@@ -313,6 +314,29 @@ impl Client {
 						tracing::warn!(%monitor_id, "failed to send frame_done: {e}");
 						break;
 					}
+				}
+			}
+			S2CMsg::MonitorAdded { monitor } => {
+				let payload = MonitorAddedPayload {
+					monitor: monitor.to_protocol_info(),
+				};
+				if let Err(e) = TabMessageFrame::json(message_header::MONITOR_ADDED, payload)
+					.send_frame_to_async_fd(&self.socket)
+					.await
+				{
+					tracing::warn!("failed to send monitor added: {e}");
+				}
+			}
+			S2CMsg::MonitorRemoved { monitor_id, name } => {
+				let payload = MonitorRemovedPayload {
+					monitor_id: monitor_id.to_string(),
+					name: name.to_string(),
+				};
+				if let Err(e) = TabMessageFrame::json(message_header::MONITOR_REMOVED, payload)
+					.send_frame_to_async_fd(&self.socket)
+					.await
+				{
+					tracing::warn!("failed to send monitor removed: {e}");
 				}
 			}
 		}

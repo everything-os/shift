@@ -7,7 +7,7 @@ use crate::{
 		client2server::{C2SMsg, C2SRx, C2STx, C2SWeakTx},
 		server2client::{S2CMsg, S2CRx, S2CTx},
 	},
-	monitor::MonitorId,
+	monitor::{Monitor, MonitorId},
 	sessions::{PendingSession, Session, SessionId},
 };
 
@@ -129,6 +129,24 @@ impl ClientView {
 			.channels
 			.1
 			.send(S2CMsg::FrameDone { monitors })
+			.await
+			.is_ok()
+	}
+
+	pub async fn notify_monitor_added(&mut self, monitor: Monitor) -> bool {
+		self
+			.channels
+			.1
+			.send(S2CMsg::MonitorAdded { monitor })
+			.await
+			.is_ok()
+	}
+
+	pub async fn notify_monitor_removed(&mut self, monitor_id: MonitorId, name: Arc<str>) -> bool {
+		self
+			.channels
+			.1
+			.send(S2CMsg::MonitorRemoved { monitor_id, name })
 			.await
 			.is_ok()
 	}

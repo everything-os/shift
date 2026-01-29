@@ -6,6 +6,7 @@ use easydrm::{EasyDRM, Monitor, MonitorContextCreationRequest, gl};
 use skia_safe::{self as skia, gpu, gpu::gl::FramebufferInfo};
 use thiserror::Error;
 use tracing::warn;
+use std::collections::HashMap;
 
 use crate::{
 	comms::{
@@ -105,6 +106,7 @@ pub struct RenderingLayer {
 	drm: EasyDRM<MonitorRenderState>,
 	command_rx: Option<RenderCmdRx>,
 	event_tx: RenderEvtTx,
+	known_monitors: HashMap<MonitorId, ServerLayerMonitor>,
 }
 
 impl RenderingLayer {
@@ -119,6 +121,7 @@ impl RenderingLayer {
 			drm,
 			command_rx: Some(command_rx),
 			event_tx,
+			known_monitors: HashMap::new(),
 		})
 	}
 
@@ -127,15 +130,16 @@ impl RenderingLayer {
 			.command_rx
 			.take()
 			.expect("render command channel missing");
+		let current = self.collect_monitors();
 		self
 			.emit_event(RenderEvt::Started {
-				monitors: self
-					.drm
-					.monitors()
-					.map(MonitorRenderState::get_server_layer_monitor)
-					.collect(),
+				monitors: current.clone(),
 			})
 			.await;
+		self.known_monitors = current
+			.into_iter()
+			.map(|m| (m.id, m))
+			.collect();
 		loop {
 			// Mantém as surfaces a seguir ao tamanho real do monitor
 			for mon in self.drm.monitors_mut() {
@@ -182,9 +186,43 @@ impl RenderingLayer {
 				monitors: page_flipped_monitors,
 			})
 			.await;
+		self.sync_monitors().await;
 	}
 	pub fn drm(&self) -> &EasyDRM<MonitorRenderState> {
 		&self.drm
+	}
+
+	fn collect_monitors(&self) -> Vec<ServerLayerMonitor> {
+		self
+			.drm
+			.monitors()
+			.map(MonitorRenderState::get_server_layer_monitor)
+			.collect()
+	}
+
+	async fn sync_monitors(&mut self) {
+		let current_list = self.collect_monitors();
+		let mut current_map = HashMap::new();
+		for monitor in current_list {
+			if !self.known_monitors.contains_key(&monitor.id) {
+				self
+					.emit_event(RenderEvt::MonitorOnline {
+						monitor: monitor.clone(),
+					})
+					.await;
+			}
+			current_map.insert(monitor.id, monitor);
+		}
+		for (removed_id, _) in self.known_monitors.iter() {
+			if !current_map.contains_key(removed_id) {
+				self
+					.emit_event(RenderEvt::MonitorOffline {
+						monitor_id: *removed_id,
+					})
+					.await;
+			}
+		}
+		self.known_monitors = current_map;
 	}
 
 	pub fn drm_mut(&mut self) -> &mut EasyDRM<MonitorRenderState> {
