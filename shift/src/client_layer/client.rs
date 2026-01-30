@@ -7,7 +7,7 @@ use std::{
 use tab_protocol::{
 	AuthErrorPayload, AuthOkPayload, ErrorPayload, FrameDonePayload, MonitorAddedPayload,
 	MonitorRemovedPayload, SessionCreatedPayload, SessionInfo, TabMessage, TabMessageFrame,
-	message_header,
+	TabMessageFrameReader, message_header,
 };
 use tokio::{io::unix::AsyncFd, task::JoinHandle};
 
@@ -27,20 +27,24 @@ pub type AsyncUnixStream = AsyncFd<UnixStream>;
 pub struct Client {
 	id: ClientId,
 	socket: AsyncUnixStream,
+	frame_reader: TabMessageFrameReader,
 	channel_client_end: ChannelsClientEnd,
 	connected_session: Option<Arc<Session>>,
 	shutdown: bool,
+	initial_monitors: Vec<Monitor>
 }
 
 impl Client {
-	pub fn wrap_socket(socket: AsyncUnixStream) -> (Self, ClientView) {
+	pub fn wrap_socket(socket: AsyncUnixStream, initial_monitors: Vec<Monitor>) -> (Self, ClientView) {
 		let channels = client_view::Channels::new();
 		let client = Self {
 			socket,
+			frame_reader: TabMessageFrameReader::new(),
 			id: ClientId::rand(),
 			channel_client_end: channels.client_end,
 			connected_session: None,
 			shutdown: false,
+			initial_monitors
 		};
 		let client_view = ClientView::from_client(&client, channels.server_end);
 		(client, client_view)
@@ -55,12 +59,12 @@ impl Client {
 			message_header::ERROR,
 			ErrorPayload {
 				code: code.into(),
-				message: error.map(|e| e.to_string()),
+				message: error.as_ref().map(|e| e.to_string()),
 			},
 		);
 		let result = tab_message.send_frame_to_async_fd(&self.socket).await;
 		if let Err(e) = result {
-			tracing::warn!("failed to send error message to client: {e}");
+			tracing::warn!("failed to send error message to client {:?}: {e}", error.map(|e| e.to_string()));
 		}
 	}
 	#[tracing::instrument(skip(self), fields(client.id = self.id().to_string()))]
@@ -74,7 +78,7 @@ impl Client {
 
 		let result = tab_message.send_frame_to_async_fd(&self.socket).await;
 		if let Err(e) = result {
-			tracing::warn!("failed to send auth error message to client: {e}");
+			tracing::warn!("failed to send auth error message to client ({}): {e}", cause.to_string());
 		}
 	}
 
@@ -126,7 +130,7 @@ impl Client {
 			($send:expr) => {
 				let send_result = self.channel_client_end.to_server().send($send).await;
 				if send_result.is_err() {
-					tracing::trace!("C2S channel closed, terminating client");
+					tracing::debug!("C2S channel closed, terminating client");
 					self.schedule_client_shutdown().await;
 					return;
 				}
@@ -172,7 +176,7 @@ impl Client {
 				send_server_msg!(C2SMsg::CreateSession(session_create_req));
 			}
 			TabMessage::Ping => {
-				tracing::trace!("received ping");
+				tracing::debug!("received ping");
 
 				let send_result = TabMessageFrame::no_payload(message_header::PONG)
 					.send_frame_to_async_fd(&self.socket)
@@ -186,7 +190,7 @@ impl Client {
 				payload: fb_info,
 				dma_bufs,
 			} => {
-				tracing::trace!(?fb_info, ?dma_bufs, "received link framebuffer request");
+				tracing::debug!(?fb_info, ?dma_bufs, "received link framebuffer request");
 				check_session!("link framebuffer", _session);
 				send_server_msg!(C2SMsg::FramebufferLink {
 					payload: fb_info,
@@ -246,7 +250,7 @@ impl Client {
 				let auth_ok = TabMessageFrame::json(
 					message_header::AUTH_OK,
 					AuthOkPayload {
-						monitors: vec![], // TODO: add monitors,
+						monitors: self.initial_monitors.iter().map(|m| m.to_protocol_info()).collect(), // TODO: add monitors,
 						session: SessionInfo {
 							display_name: Some(session.display_name().to_string()),
 							id: session.id().to_string(),
@@ -268,7 +272,7 @@ impl Client {
 				}
 			}
 			S2CMsg::SessionCreated(token, session) => {
-				tracing::trace!(
+				tracing::debug!(
 					?session,
 					?token,
 					"server says it created a new session sucessfully"
@@ -355,7 +359,7 @@ impl Client {
 	async fn run(mut self) {
 		loop {
 			tokio::select! {
-					read_frame_result = TabMessageFrame::read_frame_from_async_fd(&self.socket) => match read_frame_result.and_then(TabMessage::try_from) {
+					read_frame_result = self.frame_reader.read_frame_from_async_fd(&self.socket) => match read_frame_result.and_then(TabMessage::try_from) {
 							Ok(packet) => self.handle_packet(packet).await,
 							Err(e) => {
 									self.send_error("protocol_violation", Some(e)).await;

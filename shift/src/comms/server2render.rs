@@ -2,7 +2,7 @@ use std::os::fd::OwnedFd;
 
 use tab_protocol::{BufferIndex, FramebufferLinkPayload};
 
-use crate::monitor::MonitorId;
+use crate::{monitor::MonitorId, sessions::SessionId};
 
 #[derive(Debug)]
 pub enum RenderCmd {
@@ -12,7 +12,12 @@ pub enum RenderCmd {
 	FramebufferLink {
 		payload: FramebufferLinkPayload,
 		dma_bufs: [OwnedFd; 2],
+		session_id: SessionId,
 	},
+	/// Update which session should be displayed globally.
+	SetActiveSession { session_id: Option<SessionId> },
+	/// Drop all GPU resources associated with a disconnected session.
+	SessionRemoved { session_id: SessionId },
 	/// Present a framebuffer on a given monitor.
 	SwapBuffers {
 		monitor_id: MonitorId,

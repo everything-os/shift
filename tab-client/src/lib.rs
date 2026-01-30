@@ -5,7 +5,6 @@
 
 use std::collections::{HashMap, VecDeque};
 use std::fs::{File, OpenOptions};
-use std::io::Read;
 use std::os::fd::{AsRawFd, BorrowedFd, OwnedFd, RawFd};
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
@@ -25,7 +24,7 @@ use tab_protocol::{
 	AuthOkPayload, AuthPayload, DEFAULT_SOCKET_PATH, FrameDonePayload, FramebufferLinkPayload,
 	HelloPayload, InputEventPayload, MonitorAddedPayload, MonitorInfo, MonitorRemovedPayload,
 	PROTOCOL_VERSION, ProtocolError, SessionCreatedPayload, SessionInfo, SessionReadyPayload,
-	TabMessage, TabMessageFrame, message_header,
+	TabMessage, TabMessageFrame, TabMessageFrameReader, message_header,
 };
 
 mod egl;
@@ -249,7 +248,7 @@ impl SwapDispatcher {
 /// Rust-oriented Tab client.
 pub struct TabClient {
 	stream: UnixStream,
-	read_buffer: Vec<u8>,
+	frame_reader: TabMessageFrameReader,
 	last_error: Option<String>,
 	hello: HelloPayload,
 	session: Option<SessionInfo>,
@@ -266,7 +265,8 @@ impl TabClient {
 	) -> Result<Self, TabClientError> {
 		let gfx = GraphicsContext::new()?;
 		let stream = UnixStream::connect(path)?;
-		let hello_msg = TabMessageFrame::read_framed(&stream)?;
+		let mut frame_reader = TabMessageFrameReader::new();
+		let hello_msg = frame_reader.read_framed(&stream)?;
 		let parsed = TabMessage::parse_message_frame(hello_msg)?;
 		let hello = match parsed {
 			TabMessage::Hello(p) => p,
@@ -283,7 +283,7 @@ impl TabClient {
 		)?;
 		let mut this = Self {
 			stream,
-			read_buffer: Vec::new(),
+			frame_reader,
 			last_error: None,
 			hello,
 			session: None,
@@ -398,35 +398,7 @@ impl TabClient {
 	}
 
 	fn read_frame_blocking(&mut self) -> Result<TabMessageFrame, ProtocolError> {
-		loop {
-			if let Some(frame) = self.try_parse_buffered_frame()? {
-				return Ok(frame);
-			}
-			self.read_more()?;
-		}
-	}
-
-	fn try_parse_buffered_frame(&mut self) -> Result<Option<TabMessageFrame>, ProtocolError> {
-		if self.read_buffer.is_empty() {
-			return Ok(None);
-		}
-		match TabMessageFrame::parse_from_bytes(&self.read_buffer, Vec::new())? {
-			Some((frame, consumed)) => {
-				self.read_buffer.drain(..consumed);
-				Ok(Some(frame))
-			}
-			None => Ok(None),
-		}
-	}
-
-	fn read_more(&mut self) -> Result<(), ProtocolError> {
-		let mut buf = [0u8; 4096];
-		let bytes = self.stream.read(&mut buf)?;
-		if bytes == 0 {
-			return Err(ProtocolError::UnexpectedEof);
-		}
-		self.read_buffer.extend_from_slice(&buf[..bytes]);
-		Ok(())
+		self.frame_reader.read_framed(&self.stream)
 	}
 
 	fn initialize_outputs(&mut self, monitors: &[MonitorInfo]) -> Result<(), TabClientError> {
@@ -522,8 +494,18 @@ impl TabClient {
 
 	pub fn process_socket_events(&mut self) -> Result<Vec<TabEvent>, TabClientError> {
 		let mut events = Vec::new();
-		self.read_more().map_err(TabClientError::from)?;
-		while let Some(frame) = self.try_parse_buffered_frame()? {
+		let mut frames = Vec::new();
+		while let Some(frame) = self.frame_reader.try_pop_ready_frame() {
+			frames.push(frame);
+		}
+		if frames.is_empty() {
+			let first = self.frame_reader.read_framed(&self.stream)?;
+			frames.push(first);
+			while let Some(frame) = self.frame_reader.try_pop_ready_frame() {
+				frames.push(frame);
+			}
+		}
+		for frame in frames {
 			let msg = TabMessage::parse_message_frame(frame)?;
 			events.extend(self.handle_event_message(msg)?);
 		}

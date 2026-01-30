@@ -5,7 +5,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::{
-	os::fd::{FromRawFd, OwnedFd, RawFd},
+	os::fd::{FromRawFd, OwnedFd},
 	str::FromStr,
 	time::Duration,
 };
@@ -564,4 +564,4 @@ pub mod message_header;
 mod error;
 pub use error::*;
 
-pub use crate::message_frame::TabMessageFrame;
+pub use crate::message_frame::{TabMessageFrame, TabMessageFrameReader};
