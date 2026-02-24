@@ -1,7 +1,7 @@
 use easydrm::gl::{COLOR_BUFFER_BIT, DEPTH_BUFFER_BIT};
 use tracing::warn;
 
-use super::{RenderError, RenderEvt, RenderingLayer, current_framebuffer_binding};
+	use super::{RenderError, RenderEvt, RenderingLayer, current_framebuffer_binding};
 use super::state::SlotOwner;
 
 impl RenderingLayer {
@@ -32,7 +32,7 @@ impl RenderingLayer {
 
 			let key = self.ownership.current_slot_key(monitor_id);
 			let texture = key.and_then(|key| {
-				if self.ownership.owner(key) != Some(SlotOwner::Shift) {
+				if self.ownership.owner(key) != Some(SlotOwner::ShiftOwned) {
 					return None;
 				}
 				self.slots.get_mut(&key)

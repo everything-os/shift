@@ -43,17 +43,10 @@ impl RenderingLayer {
 		match event {
 			FenceEvent::Signaled { key } => {
 				self.fence_tasks.remove(&key);
-				if let Some(state) = self.ownership.state_mut(key.monitor_id, key.session_id) {
-					if state.pending_buffer == Some(key.buffer) {
-						let previous = state.current_buffer;
-						state.current_buffer = Some(key.buffer);
-						state.pending_buffer = None;
-						if let Some(previous) = previous.filter(|prev| *prev != key.buffer) {
-							self
-								.ownership
-								.queue_buffer_release(key.monitor_id, key.session_id, previous);
-						}
-					}
+				if let Some(previous) = self.ownership.apply_acquire_fence_signaled(key) {
+					self
+						.ownership
+						.queue_buffer_release(key.monitor_id, key.session_id, previous);
 				}
 			}
 		}

@@ -9,7 +9,7 @@ use super::dmabuf_import::{DmaBufTexture, ImportParams as DmaBufImportParams};
 use super::{
 	RenderError, RenderEvt, RenderingLayer, SlotKey,
 };
-use super::state::{BufferSlot, SlotOwner};
+use super::state::BufferSlot;
 
 impl RenderingLayer {
 	#[tracing::instrument(skip_all, fields(session_id = %session_id, monitor_id = %payload.monitor_id))]
@@ -75,19 +75,19 @@ impl RenderingLayer {
 			return;
 		}
 
-		for (slot, texture) in imported {
-			let key = SlotKey::new(monitor_id, session_id, slot);
-			self.slots.insert(key, texture);
-			self.ownership.set_owner(key, SlotOwner::Client);
+			for (slot, texture) in imported {
+				let key = SlotKey::new(monitor_id, session_id, slot);
+				self.slots.insert(key, texture);
+				self.ownership.mark_slot_client_owned(key);
+			}
 		}
-	}
 
-	pub(super) async fn process_deferred_releases(&mut self, release_fence: i32) {
-		for item in self.ownership.take_deferred_releases() {
-			let key = SlotKey::new(item.monitor_id, item.session_id, item.buffer);
-			self.ownership.set_owner(key, SlotOwner::Client);
-			let release_fence = if release_fence >= 0 {
-				let dup_fd = unsafe { libc::dup(release_fence) };
+		pub(super) async fn process_deferred_releases(&mut self, release_fence: i32) {
+			for item in self.ownership.take_deferred_releases() {
+				let key = SlotKey::new(item.monitor_id, item.session_id, item.buffer);
+				self.ownership.mark_slot_client_owned(key);
+				let release_fence = if release_fence >= 0 {
+					let dup_fd = unsafe { libc::dup(release_fence) };
 				if dup_fd >= 0 {
 					Some(unsafe { OwnedFd::from_raw_fd(dup_fd) })
 				} else {
@@ -157,36 +157,22 @@ impl RenderingLayer {
 						.await;
 				} else {
 					let has_acquire_fence = acquire_fence.is_some();
-					if let Some(state) = self.ownership.state(monitor_id, session_id)
-						&& let Some(pending) = state.pending_buffer
-					{
+					let transition = self
+						.ownership
+						.apply_swap_request(monitor_id, session_id, slot, has_acquire_fence);
+					if let Some(pending) = transition.canceled_pending {
 						let pending_key = SlotKey::new(monitor_id, session_id, pending);
-						if pending_key != slot_key {
-							self.cancel_fence_wait(pending_key);
-							self
-								.ownership
-								.queue_buffer_release(monitor_id, session_id, pending);
-						}
+						self.cancel_fence_wait(pending_key);
+						self
+							.ownership
+							.queue_buffer_release(monitor_id, session_id, pending);
 					}
 					if let Some(fence_fd) = acquire_fence {
 						self.spawn_acquire_fence_waiter(slot_key, fence_fd);
 					} else {
 						self.cancel_fence_wait(slot_key);
 					}
-					self.ownership.set_owner(slot_key, SlotOwner::Shift);
-					let previous = {
-						let state = self.ownership.state_entry(monitor_id, session_id);
-						let previous = state.current_buffer;
-						state.pending_buffer = Some(slot);
-						if !has_acquire_fence {
-							state.current_buffer = Some(slot);
-							state.pending_buffer = None;
-						}
-						previous
-					};
-					if !has_acquire_fence
-						&& let Some(previous) = previous.filter(|prev| *prev != slot)
-					{
+					if let Some(previous) = transition.previous_to_release {
 						self
 							.ownership
 							.queue_buffer_release(monitor_id, session_id, previous);

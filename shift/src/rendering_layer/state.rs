@@ -45,8 +45,8 @@ pub(super) struct DeferredRelease {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum SlotOwner {
-	Client,
-	Shift,
+	ClientOwned,
+	ShiftOwned,
 }
 
 impl BufferSlot {

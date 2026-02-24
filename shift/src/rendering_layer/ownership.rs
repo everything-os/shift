@@ -4,6 +4,11 @@ use crate::{monitor::MonitorId, sessions::SessionId};
 
 use super::state::{BufferSlot, DeferredRelease, MonitorSurfaceState, SlotKey, SlotOwner};
 
+pub(super) struct SwapApplyResult {
+	pub canceled_pending: Option<BufferSlot>,
+	pub previous_to_release: Option<BufferSlot>,
+}
+
 pub(super) struct OwnershipManager {
 	current_session: Option<SessionId>,
 	monitor_state: HashMap<(MonitorId, SessionId), MonitorSurfaceState>,
@@ -44,11 +49,7 @@ impl OwnershipManager {
 		Some(SlotKey::new(monitor_id, session_id, buffer))
 	}
 
-	pub fn state(&self, monitor_id: MonitorId, session_id: SessionId) -> Option<&MonitorSurfaceState> {
-		self.monitor_state.get(&(monitor_id, session_id))
-	}
-
-	pub fn state_mut(
+	fn state_mut(
 		&mut self,
 		monitor_id: MonitorId,
 		session_id: SessionId,
@@ -56,7 +57,7 @@ impl OwnershipManager {
 		self.monitor_state.get_mut(&(monitor_id, session_id))
 	}
 
-	pub fn state_entry(&mut self, monitor_id: MonitorId, session_id: SessionId) -> &mut MonitorSurfaceState {
+	fn state_entry(&mut self, monitor_id: MonitorId, session_id: SessionId) -> &mut MonitorSurfaceState {
 		self.monitor_state.entry((monitor_id, session_id)).or_default()
 	}
 
@@ -64,8 +65,60 @@ impl OwnershipManager {
 		self.slot_ownership.get(&key).copied()
 	}
 
-	pub fn set_owner(&mut self, key: SlotKey, owner: SlotOwner) {
-		self.slot_ownership.insert(key, owner);
+	pub fn mark_slot_client_owned(&mut self, key: SlotKey) {
+		self
+			.slot_ownership
+			.insert(key, SlotOwner::ClientOwned);
+	}
+
+	pub fn mark_slot_shift_owned(&mut self, key: SlotKey) {
+		self
+			.slot_ownership
+			.insert(key, SlotOwner::ShiftOwned);
+	}
+
+	pub fn apply_swap_request(
+		&mut self,
+		monitor_id: MonitorId,
+		session_id: SessionId,
+		slot: BufferSlot,
+		has_acquire_fence: bool,
+	) -> SwapApplyResult {
+		let canceled_pending = self
+			.monitor_state
+			.get(&(monitor_id, session_id))
+			.and_then(|state| state.pending_buffer)
+			.filter(|pending| *pending != slot);
+
+		self.mark_slot_shift_owned(SlotKey::new(monitor_id, session_id, slot));
+
+		let state = self.state_entry(monitor_id, session_id);
+		let previous = state.current_buffer;
+		state.pending_buffer = Some(slot);
+
+		let previous_to_release = if has_acquire_fence {
+			None
+		} else {
+			state.current_buffer = Some(slot);
+			state.pending_buffer = None;
+			previous.filter(|prev| *prev != slot)
+		};
+
+		SwapApplyResult {
+			canceled_pending,
+			previous_to_release,
+		}
+	}
+
+	pub fn apply_acquire_fence_signaled(&mut self, key: SlotKey) -> Option<BufferSlot> {
+		let state = self.state_mut(key.monitor_id, key.session_id)?;
+		if state.pending_buffer != Some(key.buffer) {
+			return None;
+		}
+		let previous = state.current_buffer;
+		state.current_buffer = Some(key.buffer);
+		state.pending_buffer = None;
+		previous.filter(|prev| *prev != key.buffer)
 	}
 
 	pub fn queue_buffer_release(
