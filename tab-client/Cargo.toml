@@ -12,7 +12,6 @@ libc = "0.2"
 tab-protocol = { path = "../tab-protocol" }
 thiserror = { workspace = true }
 serde_json = { workspace = true }
-khronos-egl = { version = "6.0.0", features = ["dynamic"] }
 libloading = "0.8.9"
 nix = { workspace = true, features = ["poll", "fs"] }
 gbm = { version = "0.18", default-features = false, features = ["import-egl"] }
@@ -21,6 +20,3 @@ gbm = { version = "0.18", default-features = false, features = ["import-egl"] }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 image = { version = "0.24", default-features = false, features = ["png"] }
-
-[build-dependencies]
-gl_generator = "0.14"

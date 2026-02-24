@@ -386,19 +386,31 @@ typedef enum {
 } TabAcquireResult;
 
 typedef enum {
-    TAB_EVENT_FRAME_DONE = 0,
+    TAB_EVENT_BUFFER_RELEASED = 0,
     TAB_EVENT_MONITOR_ADDED = 1,
     TAB_EVENT_MONITOR_REMOVED = 2,
     TAB_EVENT_SESSION_STATE = 3,
     TAB_EVENT_INPUT = 4,
     TAB_EVENT_SESSION_CREATED = 5,
+    TAB_EVENT_SESSION_AWAKE = 6,
+    TAB_EVENT_SESSION_SLEEP = 7,
+    TAB_EVENT_SESSION_ACTIVE = 8,
 } TabEventType;
 
+typedef struct {
+    const char *monitor_id;
+    uint32_t buffer_index;
+    int32_t release_fence_fd;
+} TabBufferRelease;
+
 typedef union {
-    const char *frame_done;
+    TabBufferRelease buffer_released;
     TabMonitorInfo monitor_added;
     const char *monitor_removed;
     TabSessionInfo session_state;
+    const char *session_awake;
+    const char *session_sleep;
+    const char *session_active;
     TabInputEvent input;
     const char *session_created_token;
 } TabEventData;
@@ -419,11 +431,13 @@ typedef struct {
     int offset;
     uint32_t fourcc;
 } TabDmabuf;
+
 typedef struct {
     uint32_t framebuffer;
     uint32_t texture;
     int32_t width;
     int32_t height;
+    uint32_t buffer_index;
     TabDmabuf dmabuf;
 } TabFrameTarget;
 /* ============================================================================
@@ -459,9 +473,10 @@ TabAcquireResult tab_client_acquire_frame(
     TabFrameTarget *target
 );
 
-bool tab_client_swap_buffers(
+bool tab_client_request_buffer(
     TabClientHandle *handle,
-    const char *monitor_id
+    const char *monitor_id,
+    int acquire_fence_fd
 );
 
 int tab_client_get_swap_fd(TabClientHandle *handle);
