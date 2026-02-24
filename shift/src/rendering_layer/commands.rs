@@ -7,9 +7,9 @@ use crate::comms::server2render::RenderCmd;
 
 use super::dmabuf_import::{DmaBufTexture, ImportParams as DmaBufImportParams};
 use super::{
-	RenderError, RenderEvt, RenderingLayer, SlotKey, SlotOwner,
+	RenderError, RenderEvt, RenderingLayer, SlotKey,
 };
-use super::state::BufferSlot;
+use super::state::{BufferSlot, SlotOwner};
 
 impl RenderingLayer {
 	#[tracing::instrument(skip_all, fields(session_id = %session_id, monitor_id = %payload.monitor_id))]
