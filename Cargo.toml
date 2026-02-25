@@ -4,6 +4,12 @@ members = [
     "shift",
     "tab-protocol",
     "tab-client",
+    "app-framework",
+    "app-framework/core",
+    "app-framework/gl",
+    "app-framework/xkb",
+    "app-framework/monitor-layout-engine",
+    "app-framework/examples/minimal-gl",
 ]
 
 [workspace.package]
@@ -22,6 +28,7 @@ tracing-tracy = "0.11"
 # easydrm = {path="../easydrm"}
 easydrm = {git = "https://github.com/ardos-os/easydrm", branch="main"}
 tokio = {version="1.49.0", features=["macros", "net", "rt-multi-thread", "time", "sync"]}
+anyhow = "1.0"
 [profile.release-with-debug]
 inherits = "release"
 debug = true

@@ -1,0 +1,20 @@
+[package]
+name = "tab-app-framework-gl"
+version = { workspace = true }
+edition = { workspace = true }
+
+[lib]
+name = "tab_app_framework_gl"
+
+[dependencies]
+anyhow = { workspace = true }
+gbm = { version = "0.18", default-features = false }
+glow = "0.14"
+libloading = "0.8"
+tab-app-framework-core = { path = "../core" }
+tab-app-framework-xkb = { path = "../xkb" }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[build-dependencies]
+gl_generator = "0.14"

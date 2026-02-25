@@ -1,0 +1,17 @@
+[package]
+name = "tab-app-framework-core"
+version = { workspace = true }
+edition = { workspace = true }
+
+[lib]
+name = "tab_app_framework_core"
+
+[dependencies]
+anyhow = { workspace = true }
+libc = "0.2"
+thiserror = { workspace = true }
+nix = { workspace = true, features = ["poll"] }
+tracing = { workspace = true }
+tab-client = { path = "../../tab-client" }
+tab-protocol = { path = "../../tab-protocol" }
+monitor-layout-engine = { path = "../monitor-layout-engine" }

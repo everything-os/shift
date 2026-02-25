@@ -26,8 +26,9 @@ use tab_protocol::message_header;
 use tab_protocol::{
 	AuthErrorPayload, AuthOkPayload, AuthPayload, BufferIndex, BufferReleasePayload,
 	BufferRequestAckPayload, InputEventPayload, MonitorInfo, SessionActivePayload,
-	SessionAwakePayload, SessionCreatePayload, SessionInfo, SessionReadyPayload,
-	SessionRole, SessionSleepPayload, SessionStatePayload, SessionSwitchPayload, TabMessage,
+	SessionAwakePayload, SessionCreatePayload, SessionCreatedPayload, SessionInfo,
+	SessionReadyPayload, SessionRole, SessionSleepPayload, SessionStatePayload,
+	SessionSwitchPayload, TabMessage,
 };
 
 use crate::gbm_allocator::GbmAllocator;
@@ -47,6 +48,7 @@ pub struct TabClient {
 
 impl TabClient {
 	const BUFFER_REQUEST_ACK_TIMEOUT: Duration = Duration::from_millis(250);
+	const SESSION_CREATE_TIMEOUT: Duration = Duration::from_millis(500);
 
 	pub fn connect(config: TabClientConfig) -> Result<Self, TabClientError> {
 		let socket = tab_protocol::unix_socket_utils::connect_seqpacket(config.socket_path_ref())?;
@@ -155,14 +157,14 @@ impl TabClient {
 	}
 
 	pub fn create_session(
-		&self,
+		&mut self,
 		role: SessionRole,
 		display_name: Option<String>,
-	) -> Result<(), TabClientError> {
+	) -> Result<SessionCreatedPayload, TabClientError> {
 		let payload = SessionCreatePayload { role, display_name };
 		TabMessageFrame::json(message_header::SESSION_CREATE, payload)
 			.encode_and_send(&self.socket)?;
-		Ok(())
+		self.wait_for_session_created()
 	}
 
 	pub fn switch_session(
@@ -402,10 +404,67 @@ impl TabClient {
 					}
 				}
 				Err(tab_protocol::ProtocolError::WouldBlock) => {
-					std::thread::sleep(Duration::from_micros(50));
+					self.poll_socket_until(deadline)?;
 				}
 				Err(other) => return Err(other.into()),
 			}
+		}
+	}
+
+	fn wait_for_session_created(&mut self) -> Result<SessionCreatedPayload, TabClientError> {
+		let deadline = Instant::now() + Self::SESSION_CREATE_TIMEOUT;
+		loop {
+			if Instant::now() >= deadline {
+				return Err(TabClientError::Unexpected("session_created timeout"));
+			}
+			match self.reader.read_framed(&self.socket) {
+				Ok(frame) => {
+					let message = TabMessage::try_from(frame)?;
+					match message {
+						TabMessage::SessionCreated(payload) => {
+							self.handle_session_created(payload.session.clone(), payload.token.clone());
+							return Ok(payload);
+						}
+						TabMessage::Error(err) => {
+							let details = err
+								.message
+								.map(|m| format!("{}: {m}", err.code))
+								.unwrap_or(err.code);
+							return Err(TabClientError::Server(details));
+						}
+						other => self.handle_message(other)?,
+					}
+				}
+				Err(tab_protocol::ProtocolError::WouldBlock) => {
+					self.poll_socket_until(deadline)?;
+				}
+				Err(other) => return Err(other.into()),
+			}
+		}
+	}
+
+	fn poll_socket_until(&self, deadline: Instant) -> Result<(), TabClientError> {
+		let now = Instant::now();
+		if now >= deadline {
+			return Ok(());
+		}
+		let remaining = deadline.saturating_duration_since(now);
+		let timeout_ms = (remaining.as_millis().max(1).min(i32::MAX as u128)) as i32;
+		let mut pfd = libc::pollfd {
+			fd: self.socket.as_raw_fd(),
+			events: libc::POLLIN | libc::POLLERR | libc::POLLHUP,
+			revents: 0,
+		};
+		loop {
+			let rc = unsafe { libc::poll(&mut pfd as *mut libc::pollfd, 1, timeout_ms) };
+			if rc >= 0 {
+				return Ok(());
+			}
+			let err = std::io::Error::last_os_error();
+			if err.kind() == std::io::ErrorKind::Interrupted {
+				continue;
+			}
+			return Err(TabClientError::Io(err));
 		}
 	}
 }

@@ -1,4 +1,5 @@
 set dotenv-load
+mod fw 'app-framework/Justfile'
 
 PROFILING_BASE_DIR := "profiling"
 TIMESTAMP := `date +%Y-%m-%d_%H-%M-%S`

@@ -1,0 +1,11 @@
+[package]
+name = "tab-app-framework-xkb"
+version = { workspace = true }
+edition = { workspace = true }
+
+[lib]
+name = "tab_app_framework_xkb"
+
+[dependencies]
+thiserror = { workspace = true }
+xkbcommon = "0.8"

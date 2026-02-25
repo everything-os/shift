@@ -1,0 +1,9 @@
+[package]
+name = "monitor-layout-engine"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "monitor_layout_engine"
+
+[dependencies]

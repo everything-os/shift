@@ -1,0 +1,10 @@
+[package]
+name = "tab-app-framework"
+version = { workspace = true }
+edition = { workspace = true }
+
+[dependencies]
+tab-app-framework-core = { path = "./core" }
+tab-app-framework-gl = { path = "./gl" }
+tab-app-framework-xkb = { path = "./xkb" }
+monitor-layout-engine = { path = "./monitor-layout-engine" }

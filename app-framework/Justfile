@@ -1,0 +1,9 @@
+set dotenv-load
+
+# Start shift and use the framework example as the admin client process.
+example:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cargo build -p tab-app-framework-example-minimal-gl
+    export ADMIN_LAUNCH_CMD="sleep 0.5s && cd app-framework && cargo run -p tab-app-framework-example-minimal-gl"
+    cd .. && cargo run --bin shift --profile release-with-debug
