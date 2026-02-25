@@ -7,8 +7,8 @@
 
 
 **Clients:**
-- [hyprde-wm](https://github.com/hyprside/hyprde-wm): Hyprside's wayland compositor, forked from [Hyprland](https://github.com/hyprwm/Hyprland) | Session Client
-- [tibs](https://github.com/hyprside/tibs) *(Planned)*: Hyprside's login screen and boot splash | Admin Client
+- [ardos-wm](https://github.com/ardos/ardos-wm): Ardos OS's wayland compositor, forked from [Hyprland](https://github.com/hyprwm/Hyprland) | Session Client
+- [tibs](https://github.com/ardos/tibs) *(Planned)*: Ardos OS's login screen and boot splash | Admin Client
 ## Key Features
 
 * **GPU-accelerated animations**: Switching between 2 users is just switching the OpenGL texture it is rendering to the screen, allowing for more interesting transitions

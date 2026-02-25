@@ -20,7 +20,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 tracing-tracy = "0.11"
 # easydrm = {path="../easydrm"}
-easydrm = {git = "https://github.com/everything-os/easydrm", branch="main"}
+easydrm = {git = "https://github.com/ardos-os/easydrm", branch="main"}
 tokio = {version="1.49.0", features=["macros", "net", "rt-multi-thread", "time", "sync"]}
 [profile.release-with-debug]
 inherits = "release"
