@@ -3,7 +3,7 @@ use std::time::Instant;
 use glow::HasContext;
 use tab_app_framework::{
 	Config, GlApplication, GlEventContext, GlInitContext, GlTabAppFramework, MouseDownEvent,
-	MouseUpEvent, PointerMoveEvent, RenderEvent, RenderMode,
+	MouseUpEvent, RenderEvent, RenderMode,
 };
 use tracing::{error, info};
 use tracing_subscriber::{EnvFilter, fmt};
@@ -50,10 +50,9 @@ impl GlApplication for App {
 			return;
 		};
 		let (cursor_x, cursor_y) = ctx.cursor_position();
-		let local_x = (cursor_x - monitor.x as f64).round() as i32;
-		let local_y = (cursor_y - monitor.y as f64).round() as i32;
+		let (local_x, local_y) = monitor.cursor_relative_position((cursor_x, cursor_y));
 		let radius = if self.left_down { 6 } else { 10 };
-		draw_cursor_circle(gl, ev.width, ev.height, local_x, local_y, radius);
+		draw_cursor_circle(gl, ev.width, ev.height, local_x as _, local_y as _, radius);
 	}
 
 	fn on_mouse_down(

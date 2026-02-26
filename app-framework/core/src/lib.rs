@@ -159,6 +159,16 @@ impl Monitor {
 			scale: 1.0,
 		}
 	}
+
+	/// Converts a global cursor position into monitor-local coordinates.
+	///
+	/// The returned coordinates are not clamped to monitor bounds.
+	pub fn cursor_relative_position(&self, global_position: (f64, f64)) -> (f64, f64) {
+		(
+			global_position.0 - self.x as f64,
+			global_position.1 - self.y as f64,
+		)
+	}
 }
 
 fn recompute_layout(monitors: &mut HashMap<String, MonitorRuntime>) {
